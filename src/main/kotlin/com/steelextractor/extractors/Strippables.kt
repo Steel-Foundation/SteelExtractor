@@ -8,7 +8,7 @@ import net.minecraft.server.MinecraftServer
 import org.slf4j.LoggerFactory
 
 
-class StrippablesExtractor : SteelExtractor.Extractor {
+class Strippables : SteelExtractor.Extractor {
     private val logger = LoggerFactory.getLogger("steel-extractor-strippables")
 
     override fun fileName(): String {
@@ -16,13 +16,10 @@ class StrippablesExtractor : SteelExtractor.Extractor {
     }
 
     override fun extract(server: MinecraftServer): JsonElement {
-        val topLevelJson = JsonArray()
+        val topLevelJson = JsonObject()
 
         for ((normal, stripped) in AxeItemAccessor.getStrippedBlocks()) {
-            val jsonObject = JsonObject()
-            jsonObject.addProperty("from", BuiltInRegistries.BLOCK.getKey(normal).path)
-            jsonObject.addProperty("to", BuiltInRegistries.BLOCK.getKey(stripped).path)
-            topLevelJson.add(jsonObject)
+            topLevelJson.addProperty(BuiltInRegistries.BLOCK.getKey(normal).path, BuiltInRegistries.BLOCK.getKey(stripped).path)
         }
 
         return topLevelJson

@@ -1,6 +1,6 @@
 package com.steelextractor
 
-import StrippablesExtractor
+import Strippables
 import com.google.gson.GsonBuilder
 import com.google.gson.JsonElement
 import com.steelextractor.extractors.Attributes
@@ -76,7 +76,7 @@ object SteelExtractor : ModInitializer {
             LevelEvents(),
             Tags(),
             StructureStarts(),
-            StrippablesExtractor(),
+            Strippables(),
         )
 
         val chunkStageExtractor = ChunkStageHashes()
