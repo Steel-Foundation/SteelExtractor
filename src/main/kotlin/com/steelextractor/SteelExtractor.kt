@@ -24,6 +24,7 @@ import com.steelextractor.extractors.Weathering
 import net.minecraft.world.level.ChunkPos
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.chunk.status.ChunkStatus
+import com.steelextractor.extractors.PoiTypesExtractor
 import com.steelextractor.extractors.Potions
 import com.steelextractor.extractors.StructureStarts
 import com.steelextractor.extractors.Tags
@@ -70,13 +71,13 @@ object SteelExtractor : ModInitializer {
             Potions(),
             SoundTypes(),
             SoundEvents(),
-            SoundTypes(),
             MultiNoiseBiomeParameters(),
             BiomeHashes(),
             LevelEvents(),
             Tags(),
             StructureStarts(),
-            Weathering()
+            Weathering(),
+            PoiTypesExtractor()
         )
 
         val chunkStageExtractor = ChunkStageHashes()
