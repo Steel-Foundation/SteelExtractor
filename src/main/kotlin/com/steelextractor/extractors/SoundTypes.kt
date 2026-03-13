@@ -11,7 +11,7 @@ import java.lang.reflect.Modifier
 
 class SoundTypes : SteelExtractor.Extractor {
     override fun fileName(): String {
-        return "sound_types.json"
+        return "steel-registry/build_assets/sound_types.json"
     }
 
     override fun extract(server: MinecraftServer): JsonElement {

@@ -34,7 +34,7 @@ class StructureStarts : SteelExtractor.Extractor {
         private const val MAX_GENERATE: Int = 2000
     }
 
-    override fun fileName(): String = "structure_starts.json"
+    override fun fileName(): String = "steel-core/test_assets/structure_starts.json"
 
     override fun extract(server: MinecraftServer): JsonElement {
         val json = JsonObject()

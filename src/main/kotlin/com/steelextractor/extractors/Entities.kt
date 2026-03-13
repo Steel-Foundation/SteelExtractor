@@ -55,7 +55,7 @@ class Entities : SteelExtractor.Extractor {
     }
 
     override fun fileName(): String {
-        return "entities.json"
+        return "steel-registry/build_assets/entities.json"
     }
 
     override fun extract(server: MinecraftServer): JsonElement {

@@ -14,7 +14,7 @@ class GameRulesExtractor : SteelExtractor.Extractor {
     private val logger = LoggerFactory.getLogger("steel-extractor-gamerules")
 
     override fun fileName(): String {
-        return "game_rules.json"
+        return "steel-registry/build_assets/game_rules.json"
     }
 
     override fun extract(server: MinecraftServer): JsonElement {

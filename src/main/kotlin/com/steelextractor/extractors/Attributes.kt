@@ -13,7 +13,7 @@ class Attributes : SteelExtractor.Extractor {
     private val logger = LoggerFactory.getLogger("steel-extractor-attributes")
 
     override fun fileName(): String {
-        return "attributes.json"
+        return "steel-registry/build_assets/attributes.json"
     }
 
     override fun extract(server: MinecraftServer): JsonElement {

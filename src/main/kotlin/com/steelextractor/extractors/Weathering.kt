@@ -9,7 +9,7 @@ import net.minecraft.world.level.block.WeatheringCopper
 
 class Weathering : SteelExtractor.Extractor {
     override fun fileName(): String {
-        return "weathering.json"
+        return "steel-core/build/weathering.json"
     }
 
     override fun extract(server: MinecraftServer): JsonElement {

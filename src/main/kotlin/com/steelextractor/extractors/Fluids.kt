@@ -17,7 +17,7 @@ class Fluids : SteelExtractor.Extractor {
     private val logger = LoggerFactory.getLogger("steel-extractor-fluids")
 
     override fun fileName(): String {
-        return "fluids.json"
+        return "steel-registry/build_assets/fluids.json"
     }
 
     fun getConstantName(clazz: Class<*>, value: Any?): String? {

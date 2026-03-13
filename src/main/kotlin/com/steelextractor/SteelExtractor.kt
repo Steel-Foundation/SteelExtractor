@@ -21,9 +21,12 @@ import com.steelextractor.extractors.MultiNoiseBiomeParameters
 import com.steelextractor.extractors.BiomeHashes
 import com.steelextractor.extractors.ChunkStageHashes
 import com.steelextractor.extractors.Weathering
+import net.minecraft.resources.ResourceKey
+import net.minecraft.server.level.ServerLevel
 import net.minecraft.world.level.ChunkPos
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.chunk.status.ChunkStatus
+import com.steelextractor.extractors.PoiTypesExtractor
 import com.steelextractor.extractors.Potions
 import com.steelextractor.extractors.StructureStarts
 import com.steelextractor.extractors.Tags
@@ -43,7 +46,10 @@ import kotlin.system.measureTimeMillis
 
 object SteelExtractor : ModInitializer {
     private val logger = LoggerFactory.getLogger("steel-extractor")
-    private const val TRACKING_RADIUS = 5
+    private const val HALF_SIZE = 25
+
+    /** Set to false to skip chunk generation and chunk stage hash extraction. */
+    private const val ENABLE_CHUNK_EXTRACTION = true
 
     override fun onInitialize() {
         logger.info("Hello Fabric world!")
@@ -70,26 +76,39 @@ object SteelExtractor : ModInitializer {
             Potions(),
             SoundTypes(),
             SoundEvents(),
-            SoundTypes(),
             MultiNoiseBiomeParameters(),
             BiomeHashes(),
             LevelEvents(),
             Tags(),
             StructureStarts(),
-            Weathering()
+            Weathering(),
+            PoiTypesExtractor()
         )
+
 
         val chunkStageExtractor = ChunkStageHashes()
 
-        ServerLifecycleEvents.SERVER_STARTING.register { _ ->
-            logger.info("Setting up chunk stage hash tracking (radius=$TRACKING_RADIUS)")
-            val chunksToTrack = mutableSetOf<ChunkPos>()
-            for (x in -TRACKING_RADIUS..TRACKING_RADIUS) {
-                for (z in -TRACKING_RADIUS..TRACKING_RADIUS) {
-                    chunksToTrack.add(ChunkPos(x, z))
+        val dimensions = listOf(
+            "minecraft:overworld" to Level.OVERWORLD,
+            "minecraft:the_nether" to Level.NETHER,
+            "minecraft:the_end" to Level.END
+        )
+
+        if (ENABLE_CHUNK_EXTRACTION) {
+            ServerLifecycleEvents.SERVER_STARTING.register { _ ->
+                logger.info("Setting up chunk stage hash tracking (${HALF_SIZE * 2}x${HALF_SIZE * 2} chunks per dimension, ${dimensions.size} dimensions)")
+                val chunksToTrack = mutableSetOf<DimChunkPos>()
+                for ((dimId, _) in dimensions) {
+                    for (x in -HALF_SIZE until HALF_SIZE) {
+                        for (z in -HALF_SIZE until HALF_SIZE) {
+                            chunksToTrack.add(DimChunkPos(ChunkPos(x, z), dimId))
+                        }
+                    }
                 }
+                ChunkStageHashStorage.startTracking(chunksToTrack)
             }
-            ChunkStageHashStorage.startTracking(chunksToTrack)
+        } else {
+            logger.info("Chunk extraction DISABLED")
         }
 
         val outputDirectory: Path
@@ -105,61 +124,108 @@ object SteelExtractor : ModInitializer {
         ServerLifecycleEvents.SERVER_STARTED.register(ServerLifecycleEvents.ServerStarted { server: MinecraftServer ->
             val timeInMillis = measureTimeMillis {
                 for (ext in immediateExtractors) {
-                    try {
-                        val out = outputDirectory.resolve(ext.fileName())
-                        val fileWriter = FileWriter(out.toFile(), StandardCharsets.UTF_8)
-                        gson.toJson(ext.extract(server), fileWriter)
-                        fileWriter.close()
-                        logger.info("Wrote " + out.toAbsolutePath())
-                    } catch (e: java.lang.Exception) {
-                        logger.error(("Extractor for \"" + ext.fileName()) + "\" failed.", e)
-                    }
+                    runExtractor(ext, outputDirectory, gson, server)
                 }
             }
             logger.info("Immediate extractors done, took ${timeInMillis}ms")
-            logger.info("Forcing generation of ${(TRACKING_RADIUS * 2 + 1) * (TRACKING_RADIUS * 2 + 1)} chunks...")
 
-            for (level in listOf(server.overworld(), server.getLevel(Level.NETHER), server.getLevel(Level.END))) {
-                if (level == null) continue
-                for (x in -TRACKING_RADIUS..TRACKING_RADIUS) {
-                    for (z in -TRACKING_RADIUS..TRACKING_RADIUS) {
-                        level.getChunk(x, z, ChunkStatus.FULL, true)
-                    }
-                }
-            }
 
-            // Mark any chunks that were loaded from disk (not freshly generated)
-            // as ready, since the mixin only fires during generation.
-            var manuallyMarked = 0
-            for (x in -TRACKING_RADIUS..TRACKING_RADIUS) {
-                for (z in -TRACKING_RADIUS..TRACKING_RADIUS) {
-                    val pos = ChunkPos(x, z)
-                    if (ChunkStageHashStorage.markReady(pos)) {
-                        manuallyMarked++
-                    }
-                }
+            if (!ENABLE_CHUNK_EXTRACTION) {
+                logger.info("All extractors complete! (chunk extraction skipped)")
             }
-            if (manuallyMarked > 0) {
-                logger.warn("$manuallyMarked chunks were loaded from disk (no intermediate stage hashes). Delete the world folder for full tracking.")
-            }
-
-            logger.info("Chunk generation forced, waiting for completion...")
         })
 
-        var tickCount = 0
+        if (!ENABLE_CHUNK_EXTRACTION) return
+
+        // Build per-dimension chunk queues
+        data class DimensionWork(
+            val dimensionKey: ResourceKey<Level>,
+            val dimId: String,
+            val chunkQueue: ArrayDeque<ChunkPos>
+        )
+
+        val dimWork = dimensions.map { (dimId, key) ->
+            val queue = ArrayDeque<ChunkPos>()
+            for (x in -HALF_SIZE until HALF_SIZE) {
+                for (z in -HALF_SIZE until HALF_SIZE) {
+                    queue.add(ChunkPos(x, z))
+                }
+            }
+            DimensionWork(key, dimId, queue)
+        }
+        val chunksPerDim = HALF_SIZE * 2 * HALF_SIZE * 2
+        val totalChunks = chunksPerDim * dimWork.size
+        val chunksPerTick = 64
+
+        var generationStarted = false
+        var currentDimIdx = 0
+        var allGenerationDone = false
         var chunkExtractorDone = false
+        var manuallyMarked = 0
+
         ServerTickEvents.END_SERVER_TICK.register { server ->
             if (chunkExtractorDone) return@register
 
-            tickCount++
-            if (tickCount % 100 == 0) {
-                logger.info("Waiting for chunks (${ChunkStageHashStorage.getReadyCount()}/${ChunkStageHashStorage.getTrackedCount()} ready)...")
+            // Start generation on first tick after server is ready
+            if (!generationStarted) {
+                generationStarted = true
+                logger.info("Forcing generation of $totalChunks chunks across ${dimWork.size} dimensions ($chunksPerTick per tick)...")
             }
 
+            // Generate a batch of chunks per tick, one dimension at a time
+            if (!allGenerationDone) {
+                val dim = dimWork[currentDimIdx]
+                ChunkStageHashStorage.currentDimension = dim.dimId
+                val level: ServerLevel = server.getLevel(dim.dimensionKey) ?: run {
+                    logger.warn("Could not get level for ${dim.dimId}, skipping")
+                    currentDimIdx++
+                    if (currentDimIdx >= dimWork.size) allGenerationDone = true
+                    return@register
+                }
+
+                var generated = 0
+                while (dim.chunkQueue.isNotEmpty() && generated < chunksPerTick) {
+                    val pos = dim.chunkQueue.removeFirst()
+                    level.getChunk(pos.x, pos.z, ChunkStatus.FULL, true)
+                    generated++
+                }
+
+                val dimProgress = chunksPerDim - dim.chunkQueue.size
+                val overallProgress = currentDimIdx * chunksPerDim + dimProgress
+                if (dimProgress % (chunksPerTick * 10) == 0 || dim.chunkQueue.isEmpty()) {
+                    logger.info("Chunk generation progress: $overallProgress/$totalChunks (${dim.dimId}: $dimProgress/$chunksPerDim)")
+                }
+
+                if (dim.chunkQueue.isEmpty()) {
+                    // Mark any chunks loaded from disk as ready
+                    for (x in -HALF_SIZE until HALF_SIZE) {
+                        for (z in -HALF_SIZE until HALF_SIZE) {
+                            val pos = ChunkPos(x, z)
+                            if (ChunkStageHashStorage.markReady(pos, dim.dimId)) {
+                                manuallyMarked++
+                            }
+                        }
+                    }
+                    logger.info("Finished generating chunks for ${dim.dimId}")
+                    currentDimIdx++
+                    if (currentDimIdx >= dimWork.size) {
+                        if (manuallyMarked > 0) {
+                            logger.warn("$manuallyMarked chunks were loaded from disk (no intermediate stage hashes). Delete the world folder for full tracking.")
+                        }
+                        allGenerationDone = true
+                        logger.info("All chunk generation complete, waiting for all stages...")
+                    }
+                }
+
+                return@register
+            }
+
+            // Wait for all chunks to finish all stages
             if (ChunkStageHashStorage.getReadyCount() >= ChunkStageHashStorage.getTrackedCount()) {
                 chunkExtractorDone = true
                 try {
                     val out = outputDirectory.resolve(chunkStageExtractor.fileName())
+                    Files.createDirectories(out.parent)
                     val fileWriter = FileWriter(out.toFile(), StandardCharsets.UTF_8)
                     gson.toJson(chunkStageExtractor.extract(server), fileWriter)
                     fileWriter.close()
@@ -167,8 +233,31 @@ object SteelExtractor : ModInitializer {
                 } catch (e: java.lang.Exception) {
                     logger.error("Extractor for \"${chunkStageExtractor.fileName()}\" failed.", e)
                 }
+                try {
+                    chunkStageExtractor.writeBinaryBlockData(outputDirectory)
+                } catch (e: java.lang.Exception) {
+                    logger.error("Binary block data extraction failed.", e)
+                }
                 logger.info("All extractors complete!")
             }
+        }
+    }
+
+    private fun runExtractor(
+        ext: Extractor,
+        outputDirectory: Path,
+        gson: com.google.gson.Gson,
+        server: MinecraftServer
+    ) {
+        try {
+            val out = outputDirectory.resolve(ext.fileName())
+            Files.createDirectories(out.parent)
+            val fileWriter = FileWriter(out.toFile(), StandardCharsets.UTF_8)
+            gson.toJson(ext.extract(server), fileWriter)
+            fileWriter.close()
+            logger.info("Wrote " + out.toAbsolutePath())
+        } catch (e: java.lang.Exception) {
+            logger.error("Extractor for \"${ext.fileName()}\" failed.", e)
         }
     }
 

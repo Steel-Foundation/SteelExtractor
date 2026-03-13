@@ -8,7 +8,7 @@ import net.minecraft.server.MinecraftServer
 
 class SoundEvents : SteelExtractor.Extractor {
     override fun fileName(): String {
-        return "sound_events.json"
+        return "steel-registry/build_assets/sound_events.json"
     }
 
     override fun extract(server: MinecraftServer): JsonElement {

@@ -9,7 +9,7 @@ import net.minecraft.server.MinecraftServer
 
 class BlockEntities : SteelExtractor.Extractor {
     override fun fileName(): String {
-        return "block_entities.json"
+        return "steel-registry/build_assets/block_entities.json"
     }
 
     override fun extract(server: MinecraftServer): JsonElement {

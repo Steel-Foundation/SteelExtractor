@@ -21,7 +21,7 @@ class Items : SteelExtractor.Extractor {
     private val logger = LoggerFactory.getLogger("steel-extractor-items")
 
     override fun fileName(): String {
-        return "items.json"
+        return "steel-registry/build_assets/items.json"
     }
 
     fun getConstantName(clazz: Class<*>, value: Any?): String? {

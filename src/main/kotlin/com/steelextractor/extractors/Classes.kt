@@ -20,7 +20,7 @@ class Classes : SteelExtractor.Extractor {
     private val logger = LoggerFactory.getLogger("steel-extractor-block-classes")
 
     override fun fileName(): String {
-        return "classes.json"
+        return "steel-core/build/classes.json"
     }
 
     override fun extract(server: MinecraftServer): JsonElement {

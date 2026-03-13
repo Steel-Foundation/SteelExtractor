@@ -12,7 +12,7 @@ class Potions : SteelExtractor.Extractor {
     private val logger = LoggerFactory.getLogger("steel-extractor-potions")
 
     override fun fileName(): String {
-        return "potions.json"
+        return "steel-registry/build_assets/potions.json"
     }
 
     override fun extract(server: MinecraftServer): JsonElement {

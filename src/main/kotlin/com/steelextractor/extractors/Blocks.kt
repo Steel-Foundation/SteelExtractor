@@ -30,7 +30,7 @@ class Blocks : SteelExtractor.Extractor {
 
 
     override fun fileName(): String {
-        return "blocks.json"
+        return "steel-registry/build_assets/blocks.json"
     }
 
     fun getConstantName(clazz: Class<*>, value: Any?): String? {

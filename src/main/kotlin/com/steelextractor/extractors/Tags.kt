@@ -12,7 +12,7 @@ class Tags : SteelExtractor.Extractor {
     private val logger = LoggerFactory.getLogger("steel-extractor-tags")
 
     override fun fileName(): String {
-        return "tags.json"
+        return "steel-registry/build_assets/tags.json"
     }
 
     override fun extract(server: MinecraftServer): JsonElement {
