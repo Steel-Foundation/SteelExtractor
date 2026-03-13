@@ -11,6 +11,7 @@ import net.minecraft.world.item.BucketItem
 import net.minecraft.world.item.StandingAndWallBlockItem
 import net.minecraft.world.level.block.Block
 import net.minecraft.world.level.block.ButtonBlock
+import net.minecraft.world.level.block.CropBlock
 import net.minecraft.world.level.block.LiquidBlock
 import net.minecraft.world.level.material.Fluid
 import org.slf4j.LoggerFactory
@@ -56,6 +57,10 @@ class Classes : SteelExtractor.Extractor {
                     BuiltInRegistries.SOUND_EVENT.getKey(blockSetType.buttonClickOff())?.path?.replace(".", "_")
                         ?.uppercase()
                 )
+            }
+
+            if (block is CropBlock) {
+                blockJson.addProperty("max_age", block.maxAge)
             }
 
             blocksJson.add(blockJson)
