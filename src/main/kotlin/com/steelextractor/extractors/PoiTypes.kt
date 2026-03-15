@@ -38,12 +38,12 @@ class PoiTypesExtractor : SteelExtractor.Extractor {
                 stateJson.addProperty("block", blockKey?.path ?: "unknown")
                 stateJson.addProperty("state_id", blockStateId)
 
-                if (blockState.values.isNotEmpty()) {
+                if (blockState.properties.isNotEmpty()) {
                     val propsJson = JsonObject()
-                    for ((prop, value) in blockState.values) {
+                    for (prop in blockState.properties) {
                         @Suppress("UNCHECKED_CAST")
                         val propTyped = prop as net.minecraft.world.level.block.state.properties.Property<Comparable<Any>>
-                        propsJson.addProperty(prop.name, propTyped.getName(value as Comparable<Any>))
+                        propsJson.addProperty(prop.name, propTyped.getName(blockState.getValue(prop) as Comparable<Any>))
                     }
                     stateJson.add("properties", propsJson)
                 }

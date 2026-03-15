@@ -65,7 +65,6 @@ class Fluids : SteelExtractor.Extractor {
     }
 
     override fun extract(server: MinecraftServer): JsonElement {
-        val topLevelJson = JsonObject()
         val fluidsJson = JsonArray()
         val world = server.overworld()
 
@@ -96,6 +95,7 @@ class Fluids : SteelExtractor.Extractor {
                 val behaviorJson = JsonObject()
 
                 behaviorJson.addProperty("is_empty", fluidState.isEmpty)
+                behaviorJson.addProperty("is_source", fluidState.isSource)
 
                 // Explosion resistance (protected method)
                 val explosionResistanceMethod = getProtectedMethod(fluid, "getExplosionResistance")
@@ -182,8 +182,6 @@ class Fluids : SteelExtractor.Extractor {
             fluidsJson.add(fluidJson)
         }
 
-        topLevelJson.add("fluids", fluidsJson)
-
-        return topLevelJson
+        return fluidsJson
     }
 }

@@ -64,9 +64,11 @@ class Items : SteelExtractor.Extractor {
                 itemJson.addProperty("blockItem", BuiltInRegistries.BLOCK.getKey(item.block).path)
             }
             if (item is StandingAndWallBlockItem) {
+                val wallBlockField = StandingAndWallBlockItem::class.java.getDeclaredField("wallBlock")
+                wallBlockField.isAccessible = true
                 itemJson.addProperty(
-                    "standingAndWallBlockItem",
-                    BuiltInRegistries.BLOCK.getKey(item.javaClass.getField("wallBlock").get(item) as Block).path
+                    "wallBlock",
+                    BuiltInRegistries.BLOCK.getKey(wallBlockField.get(item) as Block).path
                 )
             }
 
