@@ -19,6 +19,7 @@ import com.steelextractor.extractors.SoundEvents
 import com.steelextractor.extractors.SoundTypes
 import com.steelextractor.extractors.MultiNoiseBiomeParameters
 import com.steelextractor.extractors.BiomeHashes
+import com.steelextractor.extractors.CandleCakes
 import com.steelextractor.extractors.ChunkStageHashes
 import com.steelextractor.extractors.Weathering
 import net.minecraft.resources.ResourceKey
@@ -92,7 +93,8 @@ object SteelExtractor : ModInitializer {
             Tags(),
             StructureStarts(),
             Weathering(),
-            PoiTypesExtractor()
+            PoiTypesExtractor(),
+            CandleCakes(),
         )
 
 
