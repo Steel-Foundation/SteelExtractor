@@ -26,6 +26,7 @@ import net.minecraft.server.level.ServerLevel
 import net.minecraft.world.level.ChunkPos
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.chunk.status.ChunkStatus
+import com.steelextractor.extractors.EnchantmentsExtractor
 import com.steelextractor.extractors.PoiTypesExtractor
 import com.steelextractor.extractors.Potions
 import com.steelextractor.extractors.StructureStarts
@@ -92,7 +93,8 @@ object SteelExtractor : ModInitializer {
             Tags(),
             StructureStarts(),
             Weathering(),
-            PoiTypesExtractor()
+            PoiTypesExtractor(),
+            EnchantmentsExtractor()
         )
 
 
