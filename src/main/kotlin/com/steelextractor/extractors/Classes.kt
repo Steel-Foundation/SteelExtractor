@@ -6,20 +6,72 @@ import com.google.gson.JsonObject
 import com.steelextractor.SteelExtractor
 import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.server.MinecraftServer
-import net.minecraft.world.item.BlockItem
-import net.minecraft.world.item.BucketItem
-import net.minecraft.world.item.StandingAndWallBlockItem
+import net.minecraft.sounds.SoundEvent
+import net.minecraft.world.item.Item
 import net.minecraft.world.level.block.Block
-import net.minecraft.world.level.block.ButtonBlock
-import net.minecraft.world.level.block.LiquidBlock
 import net.minecraft.world.level.material.Fluid
 import org.slf4j.LoggerFactory
+import java.lang.reflect.Modifier
 
 class Classes : SteelExtractor.Extractor {
     private val logger = LoggerFactory.getLogger("steel-extractor-block-classes")
 
     override fun fileName(): String {
-        return "classes.json"
+        return "steel-core/build/classes.json"
+    }
+
+    private fun camelToSnake(name: String): String {
+        return name.replace(Regex("([a-z0-9])([A-Z])")) {
+            "${it.groupValues[1]}_${it.groupValues[2]}"
+        }.lowercase()
+    }
+
+    /// Serialize a field value into the JSON object based on its type.
+    /// Primitives, enums, and registry entries are serialized directly.
+    /// Unknown object types are recursed into (one level deep) to extract their fields.
+    private fun trySerialize(value: Any, key: String, json: JsonObject, depth: Int) {
+        when (value) {
+            is Boolean -> json.addProperty(key, value)
+            is Number -> json.addProperty(key, value)
+            is String -> json.addProperty(key, value)
+            is Enum<*> -> json.addProperty(key, value.name.lowercase())
+            is Fluid -> BuiltInRegistries.FLUID.getKey(value)?.path?.let { json.addProperty(key, it) }
+            is SoundEvent -> BuiltInRegistries.SOUND_EVENT.getKey(value)?.path?.let { json.addProperty(key, it) }
+            is Block -> BuiltInRegistries.BLOCK.getKey(value)?.path?.let { json.addProperty(key, it) }
+            is Item -> BuiltInRegistries.ITEM.getKey(value)?.path?.let { json.addProperty(key, it) }
+            else -> {
+                if (depth < 1) {
+                    extractDeclaredFields(value, value.javaClass, json, key, depth + 1)
+                }
+            }
+        }
+    }
+
+    /// Extract all declared instance fields from the given class on the given object.
+    private fun extractDeclaredFields(
+        obj: Any, clazz: Class<*>, json: JsonObject, prefix: String = "", depth: Int = 0
+    ) {
+        for (field in clazz.declaredFields) {
+            if (Modifier.isStatic(field.modifiers) || field.isSynthetic) continue
+            field.isAccessible = true
+            try {
+                val value = field.get(obj) ?: continue
+                val key = camelToSnake(field.name).let { if (prefix.isEmpty()) it else "${prefix}_$it" }
+                trySerialize(value, key, json, depth)
+            } catch (_: Exception) {
+                // Skip inaccessible fields
+            }
+        }
+    }
+
+    /// Walk up the class hierarchy from the concrete class to (but not including) the stop class,
+    /// extracting declared fields at each level.
+    private fun extractSubclassFields(obj: Any, stopClass: Class<*>, json: JsonObject) {
+        var clazz: Class<*>? = obj.javaClass
+        while (clazz != null && clazz != stopClass) {
+            extractDeclaredFields(obj, clazz, json)
+            clazz = clazz.superclass
+        }
     }
 
     override fun extract(server: MinecraftServer): JsonElement {
@@ -28,36 +80,9 @@ class Classes : SteelExtractor.Extractor {
         val blocksJson = JsonArray()
         for (block in BuiltInRegistries.BLOCK) {
             val blockJson = JsonObject()
-            val name = BuiltInRegistries.BLOCK.getKey(block)?.path ?: "unknown"
-
-            blockJson.addProperty("name", name)
+            blockJson.addProperty("name", BuiltInRegistries.BLOCK.getKey(block)?.path ?: "unknown")
             blockJson.addProperty("class", block.javaClass.simpleName)
-
-            if (block is LiquidBlock) {
-                val fluidField = LiquidBlock::class.java.getDeclaredField("fluid")
-                fluidField.isAccessible = true
-                val fluid = fluidField.get(block) as net.minecraft.world.level.material.FlowingFluid
-                blockJson.addProperty("fluid", BuiltInRegistries.FLUID.getKey(fluid)?.path)
-            }
-
-            if (block is ButtonBlock) {
-                val ticksField = ButtonBlock::class.java.getDeclaredField("ticksToStayPressed")
-                ticksField.isAccessible = true
-                blockJson.addProperty("ticks_to_stay_pressed", ticksField.getInt(block))
-
-                val typeField = ButtonBlock::class.java.getDeclaredField("type")
-                typeField.isAccessible = true
-                val blockSetType = typeField.get(block) as net.minecraft.world.level.block.state.properties.BlockSetType
-                blockJson.addProperty("button_click_on",
-                    BuiltInRegistries.SOUND_EVENT.getKey(blockSetType.buttonClickOn())?.path?.replace(".", "_")
-                        ?.uppercase()
-                )
-                blockJson.addProperty("button_click_off",
-                    BuiltInRegistries.SOUND_EVENT.getKey(blockSetType.buttonClickOff())?.path?.replace(".", "_")
-                        ?.uppercase()
-                )
-            }
-
+            extractSubclassFields(block, Block::class.java, blockJson)
             blocksJson.add(blockJson)
         }
         topLevelJson.add("blocks", blocksJson)
@@ -65,29 +90,9 @@ class Classes : SteelExtractor.Extractor {
         val itemsJson = JsonArray()
         for (item in BuiltInRegistries.ITEM) {
             val itemJson = JsonObject()
-            val name = BuiltInRegistries.ITEM.getKey(item)?.path ?: "unknown"
-
-            itemJson.addProperty("name", name)
+            itemJson.addProperty("name", BuiltInRegistries.ITEM.getKey(item)?.path ?: "unknown")
             itemJson.addProperty("class", item.javaClass.simpleName)
-
-            if (item is BlockItem) {
-                itemJson.addProperty("block", BuiltInRegistries.BLOCK.getKey(item.block)?.path)
-            }
-            if (item is StandingAndWallBlockItem) {
-                itemJson.addProperty(
-                    "wallBlock",
-                    BuiltInRegistries.BLOCK.getKey(item.javaClass.getField("wallBlock").get(item) as Block)?.path
-                )
-            }
-            if (item is BucketItem) {
-                var fluidField = BucketItem::class.java.getDeclaredField("content")
-                fluidField.isAccessible = true
-                itemJson.addProperty(
-                    "fluid",
-                    BuiltInRegistries.FLUID.getKey(fluidField.get(item) as Fluid)?.path
-                )
-            }
-
+            extractSubclassFields(item, Item::class.java, itemJson)
             itemsJson.add(itemJson)
         }
         topLevelJson.add("items", itemsJson)

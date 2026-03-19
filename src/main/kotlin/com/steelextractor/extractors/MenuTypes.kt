@@ -12,7 +12,7 @@ class MenuTypes : SteelExtractor.Extractor {
     private val logger = LoggerFactory.getLogger("steel-extractor-menutypes")
 
     override fun fileName(): String {
-        return "menutypes.json"
+        return "steel-registry/build_assets/menutypes.json"
     }
 
     override fun extract(server: MinecraftServer): JsonElement {

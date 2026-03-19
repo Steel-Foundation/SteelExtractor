@@ -28,6 +28,15 @@ loom {
 		}
 	}
 
+	runs {
+		server {
+			// Force single worker thread so thread-local biome cache is deterministic
+			//vmArgs "-Dmax.bg.threads=1"
+			// Disable structures so they don't affect block hashes
+			vmArgs "-DMC_DEBUG_ENABLED=true"
+			vmArgs "-DMC_DEBUG_DISABLE_STRUCTURES=true"
+		}
+	}
 }
 
 fabricApi {

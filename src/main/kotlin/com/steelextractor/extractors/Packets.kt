@@ -21,7 +21,7 @@ class Packets : SteelExtractor.Extractor {
     private val logger = LoggerFactory.getLogger("steel-extractor-packets")
 
     override fun fileName(): String {
-        return "packets.json"
+        return "steel-registry/build_assets/packets.json"
     }
 
     override fun extract(server: MinecraftServer): JsonElement {

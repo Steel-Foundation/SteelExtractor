@@ -10,7 +10,7 @@ import kotlin.reflect.full.staticProperties
 
 class EntityEvents : SteelExtractor.Extractor {
     override fun fileName(): String {
-        return "entity_events.json"
+        return "steel-utils/build_assets/entity_events.json"
     }
 
     override fun extract(server: MinecraftServer): JsonElement {

@@ -9,7 +9,7 @@ import java.lang.reflect.Modifier
 
 class LevelEvents : SteelExtractor.Extractor {
     override fun fileName(): String {
-        return "level_events.json"
+        return "steel-registry/build_assets/level_events.json"
     }
 
     override fun extract(server: MinecraftServer): JsonElement {

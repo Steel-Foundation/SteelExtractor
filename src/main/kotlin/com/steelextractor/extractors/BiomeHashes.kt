@@ -25,7 +25,7 @@ class BiomeHashes : SteelExtractor.Extractor {
     }
 
     override fun fileName(): String {
-        return "biome_hashes.json"
+        return "steel-core/test_assets/biome_hashes.json"
     }
 
     private data class BiomeKey(val sectionY: Int, val x: Int, val y: Int, val z: Int)

@@ -12,7 +12,7 @@ class MobEffects : SteelExtractor.Extractor {
     private val logger = LoggerFactory.getLogger("steel-extractor-mob-effects")
 
     override fun fileName(): String {
-        return "mob_effects.json"
+        return "steel-registry/build_assets/mob_effects.json"
     }
 
     override fun extract(server: MinecraftServer): JsonElement {
