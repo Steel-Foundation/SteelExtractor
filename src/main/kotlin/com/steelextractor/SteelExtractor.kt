@@ -21,6 +21,7 @@ import com.steelextractor.extractors.MultiNoiseBiomeParameters
 import com.steelextractor.extractors.BiomeHashes
 import com.steelextractor.extractors.ChunkStageHashes
 import com.steelextractor.extractors.Weathering
+import com.steelextractor.extractors.Strippables
 import net.minecraft.resources.ResourceKey
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.world.level.ChunkPos
@@ -92,8 +93,9 @@ object SteelExtractor : ModInitializer {
             LevelEvents(),
             Tags(),
             StructureStarts(),
-            Waxables(),
+            Strippables(),
             Weathering(),
+            Waxables(),
             PoiTypesExtractor()
         )
 
