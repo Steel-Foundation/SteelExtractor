@@ -29,6 +29,7 @@ import net.minecraft.world.level.Level
 import net.minecraft.world.level.chunk.status.ChunkStatus
 import com.steelextractor.extractors.PoiTypesExtractor
 import com.steelextractor.extractors.Potions
+import com.steelextractor.extractors.RecipePropertySets
 import com.steelextractor.extractors.StructureStarts
 import com.steelextractor.extractors.Tags
 import com.steelextractor.extractors.Waxables
@@ -112,7 +113,8 @@ object SteelExtractor : ModInitializer {
             Strippables(),
             Weathering(),
             Waxables(),
-            PoiTypesExtractor()
+            PoiTypesExtractor(),
+            RecipePropertySets()
         )
 
 
