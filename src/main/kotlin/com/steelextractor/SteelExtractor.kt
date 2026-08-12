@@ -29,6 +29,7 @@ import com.steelextractor.extractors.VillagerTypeRegistryExtractor
 import com.steelextractor.extractors.CandleCakes
 import com.steelextractor.extractors.ChunkStageHashes
 import com.steelextractor.extractors.CustomStatRegistryExtractor
+import com.steelextractor.extractors.Commands
 import com.steelextractor.extractors.GameEvents
 import com.steelextractor.extractors.Weathering
 import com.steelextractor.extractors.Strippables
@@ -216,6 +217,7 @@ object SteelExtractor : ModInitializer {
 
         addUnlessDisabled("BLOCKS") { Blocks() }
         addUnlessDisabled("BLOCK_ENTITIES") { BlockEntities() }
+        addUnlessDisabled("COMMANDS") { Commands() }
         addUnlessDisabled("DATA_COMPONENTS") { DataComponents() }
         addUnlessDisabled("ITEMS") { Items() }
         addUnlessDisabled("PARTICLE_TYPES") { ParticleTypeRegistryExtractor() }
