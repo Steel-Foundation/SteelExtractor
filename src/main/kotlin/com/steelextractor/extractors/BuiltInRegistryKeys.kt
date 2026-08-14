@@ -9,12 +9,14 @@ import net.minecraft.core.particles.ParticleType
 import net.minecraft.core.particles.ParticleTypes
 import net.minecraft.core.particles.SimpleParticleType
 import net.minecraft.core.registries.BuiltInRegistries
+import net.minecraft.resources.Identifier
 import net.minecraft.server.MinecraftServer
 import net.minecraft.sounds.SoundEvent
+import net.minecraft.stats.StatType
 import net.minecraft.world.entity.npc.villager.VillagerProfession
 import net.minecraft.world.entity.npc.villager.VillagerType
-import net.minecraft.world.level.saveddata.maps.MapDecorationType
 import net.minecraft.world.level.gameevent.PositionSourceType
+import net.minecraft.world.level.saveddata.maps.MapDecorationType
 
 private fun <T : Any> extractBuiltInRegistry(
     registry: Registry<T>,
@@ -145,5 +147,25 @@ class VillagerProfessionRegistryExtractor : SteelExtractor.Extractor {
         val key = BuiltInRegistries.SOUND_EVENT.getKey(sound)
             ?: error("Villager profession work sound has no key: $sound")
         return key.toString()
+    }
+}
+
+class CustomStatRegistryExtractor : SteelExtractor.Extractor {
+    override fun fileName(): String {
+        return "steel-registry/build_assets/custom_stats.json"
+    }
+
+    override fun extract(server: MinecraftServer): JsonElement {
+        return extractBuiltInRegistry(BuiltInRegistries.CUSTOM_STAT) { _: Identifier, _ -> }
+    }
+}
+
+class StatTypeRegistryExtractor : SteelExtractor.Extractor {
+    override fun fileName(): String {
+        return "steel-registry/build_assets/stat_types.json"
+    }
+
+    override fun extract(server: MinecraftServer): JsonElement {
+        return extractBuiltInRegistry(BuiltInRegistries.STAT_TYPE) { _: StatType<*>, _ -> }
     }
 }
