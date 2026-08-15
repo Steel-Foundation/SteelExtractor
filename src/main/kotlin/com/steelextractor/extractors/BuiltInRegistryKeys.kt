@@ -16,15 +16,36 @@ import net.minecraft.world.entity.npc.villager.VillagerType
 import net.minecraft.world.level.saveddata.maps.MapDecorationType
 import net.minecraft.world.level.gameevent.PositionSourceType
 
-private fun <T : Any> extractBuiltInRegistry(
+internal fun <T : Any> extractBuiltInRegistry(
     registry: Registry<T>,
+    sortById: Boolean = false,
     addFields: (T, JsonObject) -> Unit = { _, _ -> }
 ): JsonArray {
     val values = JsonArray()
-    for (entry in registry) {
+    val entries = if (sortById) {
+        registry.toList().sortedBy { registry.getId(it) }
+    } else {
+        registry.toList()
+    }
+
+    val ids = HashSet<Int>()
+    val keys = HashSet<String>()
+    var expectedId = 0
+
+    for (entry in entries) {
+        val id = registry.getId(entry)
         val key = registry.getKey(entry) ?: error("Built-in registry entry has no key: $entry")
+        if (sortById) {
+            require(id == expectedId) {
+                "Built-in registry IDs must be contiguous: expected $expectedId, got $id for $key"
+            }
+            require(ids.add(id)) { "Duplicate built-in registry ID $id for $key" }
+            require(keys.add(key.toString())) { "Duplicate built-in registry key $key" }
+            expectedId++
+        }
+
         val entryJson = JsonObject()
-        entryJson.addProperty("id", registry.getId(entry))
+        entryJson.addProperty("id", id)
         entryJson.addProperty("key", key.toString())
         addFields(entry, entryJson)
         values.add(entryJson)
