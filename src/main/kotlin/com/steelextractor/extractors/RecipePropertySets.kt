@@ -8,13 +8,6 @@ import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.server.MinecraftServer
 import net.minecraft.world.item.ItemStack
 
-/**
- * Extracts the item sets synchronized by vanilla's update-recipes packet.
- *
- * RecipeManager builds these sets from the loaded recipes after filtering disabled feature flags.
- * Reading the finalized sets keeps this extractor aligned with datapack reload and feature-flag
- * behavior instead of reimplementing RecipeManager's recipe classification.
- */
 class RecipePropertySets : SteelExtractor.Extractor {
     override val required: Boolean = true
 

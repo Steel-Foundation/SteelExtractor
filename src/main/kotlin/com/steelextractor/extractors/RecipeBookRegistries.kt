@@ -7,12 +7,6 @@ import net.minecraft.SharedConstants
 import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.server.MinecraftServer
 
-/**
- * Extracts the built-in registries used by recipe-book packet dispatch.
- *
- * These registries are known by an unmodified vanilla client, so Steel consumes their exact
- * numeric IDs rather than assigning IDs independently during Rust code generation.
- */
 class RecipeBookRegistries : SteelExtractor.Extractor {
     override val required: Boolean = true
 
