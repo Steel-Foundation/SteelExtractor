@@ -28,6 +28,7 @@ import com.steelextractor.extractors.MapDecorationTypeRegistryExtractor
 import com.steelextractor.extractors.VillagerTypeRegistryExtractor
 import com.steelextractor.extractors.CandleCakes
 import com.steelextractor.extractors.ChunkStageHashes
+import com.steelextractor.extractors.CustomStatRegistryExtractor
 import com.steelextractor.extractors.GameEvents
 import com.steelextractor.extractors.Weathering
 import com.steelextractor.extractors.Strippables
@@ -39,6 +40,7 @@ import net.minecraft.world.level.chunk.ChunkAccess
 import net.minecraft.world.level.chunk.status.ChunkStatus
 import com.steelextractor.extractors.PoiTypesExtractor
 import com.steelextractor.extractors.Potions
+import com.steelextractor.extractors.StatTypeRegistryExtractor
 import com.steelextractor.extractors.StructureStarts
 import com.steelextractor.extractors.Tags
 import com.steelextractor.extractors.Waxables
@@ -245,7 +247,8 @@ object SteelExtractor : ModInitializer {
         addUnlessDisabled("WAXABLES") { Waxables() }
         addUnlessDisabled("POI_TYPES") { PoiTypesExtractor() }
         addUnlessDisabled("GAME_EVENTS") { GameEvents() }
-
+        addUnlessDisabled("CUSTOM_STATS") { CustomStatRegistryExtractor() }
+        addUnlessDisabled("STAT_TYPES") { StatTypeRegistryExtractor() }
 
         val chunkStageExtractor = ChunkStageHashes()
 
