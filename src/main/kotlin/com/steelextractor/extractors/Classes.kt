@@ -3,10 +3,15 @@ package com.steelextractor.extractors
 import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
+import com.mojang.serialization.JsonOps
 import com.steelextractor.SteelExtractor
 import net.minecraft.core.registries.BuiltInRegistries
+import net.minecraft.resources.ResourceKey
 import net.minecraft.server.MinecraftServer
 import net.minecraft.sounds.SoundEvent
+import net.minecraft.tags.TagKey
+import net.minecraft.util.valueproviders.IntProvider
+import net.minecraft.util.valueproviders.IntProviders
 import net.minecraft.world.entity.Entity
 import net.minecraft.world.entity.EntitySpawnReason
 import net.minecraft.world.entity.EntityType
@@ -33,19 +38,25 @@ class Classes : SteelExtractor.Extractor {
     }
 
     /// Serialize a field value into the JSON object based on its type.
-    /// Primitives, enums, and registry entries are serialized directly.
+    /// Primitives, value providers, enums, and registry entries are serialized directly.
     /// Unknown object types are recursed into (one level deep) to extract their fields.
     private fun trySerialize(value: Any, key: String, json: JsonObject, depth: Int) {
         when (value) {
             is Boolean -> json.addProperty(key, value)
             is Number -> json.addProperty(key, value)
             is String -> json.addProperty(key, value)
+            is IntProvider -> json.add(
+                key,
+                IntProviders.CODEC.encodeStart(JsonOps.INSTANCE, value).getOrThrow()
+            )
             is Enum<*> -> json.addProperty(key, value.name.lowercase())
             is Fluid -> BuiltInRegistries.FLUID.getKey(value)?.path?.let { json.addProperty(key, it) }
             is SoundEvent -> BuiltInRegistries.SOUND_EVENT.getKey(value)?.path?.let { json.addProperty(key, it) }
             is Block -> BuiltInRegistries.BLOCK.getKey(value)?.path?.let { json.addProperty(key, it) }
             is Item -> BuiltInRegistries.ITEM.getKey(value)?.path?.let { json.addProperty(key, it) }
             is EntityType<*> -> BuiltInRegistries.ENTITY_TYPE.getKey(value)?.path?.let { json.addProperty(key, it) }
+            is ResourceKey<*> -> json.addProperty(key, value.identifier().path)
+            is TagKey<*> -> json.addProperty(key, value.location().path)
             else -> {
                 if (depth < 1) {
                     extractDeclaredFields(value, value.javaClass, json, key, depth + 1)

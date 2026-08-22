@@ -7,6 +7,7 @@ import com.steelextractor.extractors.Classes
 import com.steelextractor.extractors.BlockEntities
 import com.steelextractor.extractors.Blocks
 import com.steelextractor.extractors.Entities
+import com.steelextractor.extractors.EntityVariantRegistries
 import com.steelextractor.extractors.EntityEvents
 import com.steelextractor.extractors.DataComponents
 import com.steelextractor.extractors.Fluids
@@ -224,6 +225,7 @@ object SteelExtractor : ModInitializer {
         addUnlessDisabled("PACKETS") { Packets() }
         addUnlessDisabled("MENU_TYPES") { MenuTypes() }
         addUnlessDisabled("ENTITIES") { Entities() }
+        addUnlessDisabled("ENTITY_VARIANT_REGISTRIES") { EntityVariantRegistries() }
         addUnlessDisabled("ENTITY_EVENTS") { EntityEvents() }
         addUnlessDisabled("FLUIDS") { Fluids() }
         addUnlessDisabled("GAME_RULES") { GameRulesExtractor() }

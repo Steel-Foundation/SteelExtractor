@@ -508,6 +508,49 @@ class Blocks : SteelExtractor.Extractor {
         return resultJson
     }
 
+    private fun createStateMapColorJson(block: Block): JsonObject {
+        val resultJson = JsonObject()
+        val possibleStates = block.stateDefinition.possibleStates
+        if (possibleStates.isEmpty()) {
+            resultJson.addProperty("default", 0)
+            resultJson.add("overwrites", JsonArray())
+            return resultJson
+        }
+
+        val colorCounts = LinkedHashMap<Int, Int>()
+        for (state in possibleStates) {
+            val color = state.getMapColor(EmptyBlockGetter.INSTANCE, BlockPos.ZERO).id
+            colorCounts.merge(color, 1, Int::plus)
+        }
+
+        var defaultColor = possibleStates[0]
+            .getMapColor(EmptyBlockGetter.INSTANCE, BlockPos.ZERO)
+            .id
+        var defaultCount = 0
+        for ((color, count) in colorCounts) {
+            if (count > defaultCount) {
+                defaultColor = color
+                defaultCount = count
+            }
+        }
+        resultJson.addProperty("default", defaultColor)
+
+        val overwrites = JsonArray()
+        for (i in possibleStates.indices) {
+            val color = possibleStates[i]
+                .getMapColor(EmptyBlockGetter.INSTANCE, BlockPos.ZERO)
+                .id
+            if (color != defaultColor) {
+                val overwrite = JsonObject()
+                overwrite.addProperty("offset", i)
+                overwrite.addProperty("value", color)
+                overwrites.add(overwrite)
+            }
+        }
+        resultJson.add("overwrites", overwrites)
+        return resultJson
+    }
+
     override fun extract(server: MinecraftServer): JsonElement {
         val topLevelJson = JsonObject()
 
@@ -599,6 +642,7 @@ class Blocks : SteelExtractor.Extractor {
             blockJson.add("visual_shapes", shapesStructureJson.getAsJsonObject("visual_shapes"))
             blockJson.add("light_properties", createLightPropertiesJson(block))
             blockJson.add("fluid_state", createStateFluidPropertiesJson(block))
+            blockJson.add("map_color", createStateMapColorJson(block))
             blockJson.add(
                 "randomly_ticking",
                 createStateBooleanPropertiesJson(block) { state -> state.isRandomlyTicking },

@@ -51,6 +51,7 @@ class MobEffects : SteelExtractor.Extractor {
 
             effectJson.addProperty("category", effect.category.name)
             effectJson.addProperty("color", effect.color)
+            effectJson.addProperty("instantaneous", effect.isInstantaneous)
             effectJson.add("particle", extractParticle(effect))
             val attributeModifiers = extractAttributeModifiers(effect)
             if (attributeModifiers.size() > 0) {

@@ -20,13 +20,14 @@ class Potions : SteelExtractor.Extractor {
 
         for (potion in BuiltInRegistries.POTION) {
             val key = BuiltInRegistries.POTION.getKey(potion)
-            val name = key?.path ?: "unknown"
+            val keyName = key?.path ?: "unknown"
 
             val potionJson = JsonObject()
             val id = BuiltInRegistries.POTION.getId(potion)
 
             potionJson.addProperty("id", id)
-            potionJson.addProperty("name", name)
+            potionJson.addProperty("key", keyName)
+            potionJson.addProperty("name", potion.name())
 
             try {
                 // Extract effects
@@ -41,7 +42,7 @@ class Potions : SteelExtractor.Extractor {
                 }
                 potionJson.add("effects", effectsArray)
             } catch (e: Exception) {
-                logger.warn("Failed to get info for " + name + ": " + e.message)
+                logger.warn("Failed to get info for " + keyName + ": " + e.message)
             }
 
             potionsArray.add(potionJson)
