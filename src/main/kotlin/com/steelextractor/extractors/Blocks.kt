@@ -12,6 +12,7 @@ import net.minecraft.resources.RegistryOps
 import net.minecraft.server.MinecraftServer
 import net.minecraft.world.level.EmptyBlockGetter
 import net.minecraft.world.level.block.Block
+import net.minecraft.world.level.block.FireBlock
 import net.minecraft.world.level.block.state.BlockBehaviour
 import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.world.level.block.state.properties.BlockStateProperties
@@ -556,6 +557,7 @@ class Blocks : SteelExtractor.Extractor {
 
         val blocksJson = JsonArray()
 
+        val fireBlock = net.minecraft.world.level.block.Blocks.FIRE as FireBlock
 
         for (block in BuiltInRegistries.BLOCK) {
             val blockJson = JsonObject()
@@ -575,6 +577,7 @@ class Blocks : SteelExtractor.Extractor {
                 "explosionResistance",
                 getPrivateFieldValue<Float>(behaviourProps, "explosionResistance")
             )
+            
             behaviourJson.addProperty(
                 "isRandomlyTicking",
                 getPrivateFieldValue<Boolean>(behaviourProps, "isRandomlyTicking")
@@ -606,10 +609,7 @@ class Blocks : SteelExtractor.Extractor {
             behaviourJson.addProperty("maxVerticalOffset", getProtectedFloatMethodValue(block, "getMaxVerticalOffset"))
 
             behaviourJson.addProperty("destroyTime", getPrivateFieldValue<Float>(behaviourProps, "destroyTime"))
-            behaviourJson.addProperty(
-                "explosionResistance",
-                getPrivateFieldValue<Float>(behaviourProps, "explosionResistance")
-            )
+
             behaviourJson.addProperty("ignitedByLava", getPrivateFieldValue<Boolean>(behaviourProps, "ignitedByLava"))
 
             behaviourJson.addProperty("liquid", getPrivateFieldValue<Boolean>(behaviourProps, "liquid"))
@@ -659,6 +659,17 @@ class Blocks : SteelExtractor.Extractor {
                     state.isRedstoneConductor(EmptyBlockGetter.INSTANCE, BlockPos.ZERO)
                 },
             )
+
+            val igniteOddsMethod = fireBlock.javaClass.getDeclaredMethod("getIgniteOdds", BlockState::class.java).apply { isAccessible = true }
+            val burnOddsMethod = fireBlock.javaClass.getDeclaredMethod("getBurnOdds", BlockState::class.java).apply { isAccessible = true }
+
+            val defaultState = block.defaultBlockState()
+
+            val spreadChance = igniteOddsMethod.invoke(fireBlock, defaultState) as Int
+            val burnChance = burnOddsMethod.invoke(fireBlock, defaultState) as Int
+
+            blockJson.addProperty("spread_chance", spreadChance)
+            blockJson.addProperty("burn_chance", burnChance)
 
             // Only add if there are actual differences
             if (behaviourJson.size() > 0) {
