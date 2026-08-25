@@ -558,7 +558,8 @@ class Blocks : SteelExtractor.Extractor {
         val blocksJson = JsonArray()
 
         val fireBlock = net.minecraft.world.level.block.Blocks.FIRE as FireBlock
-
+        val igniteOddsMethod = fireBlock.javaClass.getDeclaredMethod("getIgniteOdds", BlockState::class.java).apply { isAccessible = true }
+        val burnOddsMethod = fireBlock.javaClass.getDeclaredMethod("getBurnOdds", BlockState::class.java).apply { isAccessible = true }
         for (block in BuiltInRegistries.BLOCK) {
             val blockJson = JsonObject()
             blockJson.addProperty("id", BuiltInRegistries.BLOCK.getId(block))
@@ -660,17 +661,18 @@ class Blocks : SteelExtractor.Extractor {
                 },
             )
 
-            val igniteOddsMethod = fireBlock.javaClass.getDeclaredMethod("getIgniteOdds", BlockState::class.java).apply { isAccessible = true }
-            val burnOddsMethod = fireBlock.javaClass.getDeclaredMethod("getBurnOdds", BlockState::class.java).apply { isAccessible = true }
 
             val defaultState = block.defaultBlockState()
 
             val spreadChance = igniteOddsMethod.invoke(fireBlock, defaultState) as Int
             val burnChance = burnOddsMethod.invoke(fireBlock, defaultState) as Int
-
-            blockJson.addProperty("spread_chance", spreadChance)
-            blockJson.addProperty("burn_chance", burnChance)
-
+            if (spreadChance > 0 || burnChance > 0) {
+                val flammabilityJson = JsonObject().apply {
+                    addProperty("spread_chance", spreadChance)
+                    addProperty("burn_chance", burnChance)
+                }
+                blockJson.add("flammability", flammabilityJson)
+            }
             // Only add if there are actual differences
             if (behaviourJson.size() > 0) {
                 blockJson.add("behavior_properties", behaviourJson)
