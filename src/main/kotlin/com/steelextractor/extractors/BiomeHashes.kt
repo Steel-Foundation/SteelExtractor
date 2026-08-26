@@ -69,19 +69,19 @@ class BiomeHashes : SteelExtractor.Extractor {
         val noiseRegistry = server.registryAccess().lookupOrThrow(Registries.NOISE)
 
         val randomState = if (chunkGenerator is NoiseBasedChunkGenerator) {
-            RandomState.create(chunkGenerator.generatorSettings().value(), noiseRegistry, SEED)
+            RandomState.create(noiseRegistry, SEED, chunkGenerator.generatorSettings().value())
         } else {
             logger.warn("Chunk generator for $name is not NoiseBasedChunkGenerator, using level's RandomState")
             level.chunkSource.randomState()
         }
 
-        val climateSampler = randomState.sampler()
+        val biomeResolver = biomeSource.createUncachedResolver(randomState)
 
         val hashesArray = JsonArray()
 
         val sampledPositions = SteelExtractor.sampledChunkPositions()
         for (pos in sampledPositions) {
-            val hash = chunkBiomeHash(climateSampler, biomeSource, pos.x, pos.z, minSectionY, maxSectionY)
+            val hash = chunkBiomeHash(biomeResolver, pos.x, pos.z, minSectionY, maxSectionY)
 
             val entry = JsonArray()
             entry.add(pos.x)
@@ -103,8 +103,7 @@ class BiomeHashes : SteelExtractor.Extractor {
      * tie-breaking, then hashes in deterministic Y,Z,X order with section_y markers.
      */
     private fun chunkBiomeHash(
-        climateSampler: net.minecraft.world.level.biome.Climate.Sampler,
-        biomeSource: net.minecraft.world.level.biome.BiomeSource,
+        biomeResolver: net.minecraft.world.level.biome.BiomeResolver,
         chunkX: Int,
         chunkZ: Int,
         minSectionY: Int,
@@ -122,7 +121,7 @@ class BiomeHashes : SteelExtractor.Extractor {
                         val quartY = sectionY * 4 + y
                         val quartZ = chunkZ * 4 + z
 
-                        val biome = biomeSource.getNoiseBiome(quartX, quartY, quartZ, climateSampler)
+                        val biome = biomeResolver.getNoiseBiome(quartX, quartY, quartZ)
                         val biomeName = biome.unwrapKey()
                             .map { it.identifier().toString() }
                             .orElse("unknown")
