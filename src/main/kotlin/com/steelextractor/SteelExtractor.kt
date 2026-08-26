@@ -18,6 +18,8 @@ import com.steelextractor.extractors.PositionSourceTypeRegistryExtractor
 import com.steelextractor.extractors.MenuTypes
 import com.steelextractor.extractors.MobEffects
 import com.steelextractor.extractors.Packets
+import com.steelextractor.extractors.RecipeBookRegistries
+import com.steelextractor.extractors.RecipePropertySets
 import com.steelextractor.extractors.LevelEvents
 import com.steelextractor.extractors.SoundEvents
 import com.steelextractor.extractors.SoundTypes
@@ -56,6 +58,8 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.nio.file.StandardCopyOption
+import java.nio.file.AtomicMoveNotSupportedException
 import java.util.concurrent.CompletableFuture
 import kotlin.random.Random
 import kotlin.system.exitProcess
@@ -223,6 +227,8 @@ object SteelExtractor : ModInitializer {
         addUnlessDisabled("VILLAGER_TYPES") { VillagerTypeRegistryExtractor() }
         addUnlessDisabled("VILLAGER_PROFESSIONS") { VillagerProfessionRegistryExtractor() }
         addUnlessDisabled("PACKETS") { Packets() }
+        addUnlessDisabled("RECIPE_BOOK_REGISTRIES") { RecipeBookRegistries() }
+        addUnlessDisabled("RECIPE_PROPERTY_SETS") { RecipePropertySets() }
         addUnlessDisabled("MENU_TYPES") { MenuTypes() }
         addUnlessDisabled("ENTITIES") { Entities() }
         addUnlessDisabled("ENTITY_VARIANT_REGISTRIES") { EntityVariantRegistries() }
@@ -309,20 +315,29 @@ object SteelExtractor : ModInitializer {
 
         val gson = GsonBuilder().disableHtmlEscaping().setPrettyPrinting().create()
 
+        var requiredExtractorFailed = false
         ServerLifecycleEvents.SERVER_STARTED.register(ServerLifecycleEvents.ServerStarted { server: MinecraftServer ->
             if (envFlag(DEBUG_SKIP_IMMEDIATE_ENV)) {
                 logger.warn("Skipping immediate extractors because $DEBUG_SKIP_IMMEDIATE_ENV is enabled")
+                requiredExtractorFailed = true
             } else {
                 val timeInMillis = measureTimeMillis {
                     for (ext in immediateExtractors) {
-                        runExtractor(ext, outputDirectory, gson, server)
+                        if (!runExtractor(ext, outputDirectory, gson, server)) {
+                            requiredExtractorFailed = true
+                        }
                     }
                 }
                 logger.info("Immediate extractors done, took ${timeInMillis}ms")
             }
 
 
-            if (!ENABLE_CHUNK_EXTRACTION) {
+            if (requiredExtractorFailed) {
+                logger.error("One or more required extractors failed; extraction is incomplete")
+                if (envFlag("STEEL_EXTRACTOR_EXIT_ON_COMPLETE")) {
+                    exitProcess(1)
+                }
+            } else if (!ENABLE_CHUNK_EXTRACTION) {
                 logger.info("All extractors complete! (chunk extraction skipped)")
                 if (envFlag("STEEL_EXTRACTOR_EXIT_ON_COMPLETE")) {
                     logger.info("Exiting because STEEL_EXTRACTOR_EXIT_ON_COMPLETE is enabled")
@@ -594,8 +609,15 @@ object SteelExtractor : ModInitializer {
                         logger.error("Binary light data extraction failed.", e)
                     }
                 }
-                logger.info("All extractors complete!")
-                if (envFlag("STEEL_EXTRACTOR_EXIT_ON_COMPLETE")) {
+                if (requiredExtractorFailed) {
+                    logger.error("One or more required extractors failed; extraction is incomplete")
+                    if (envFlag("STEEL_EXTRACTOR_EXIT_ON_COMPLETE")) {
+                        exitProcess(1)
+                    }
+                } else {
+                    logger.info("All extractors complete!")
+                }
+                if (!requiredExtractorFailed && envFlag("STEEL_EXTRACTOR_EXIT_ON_COMPLETE")) {
                     logger.info("Exiting because STEEL_EXTRACTOR_EXIT_ON_COMPLETE is enabled")
                     exitProcess(0);
                 }
@@ -608,20 +630,38 @@ object SteelExtractor : ModInitializer {
         outputDirectory: Path,
         gson: com.google.gson.Gson,
         server: MinecraftServer
-    ) {
+    ): Boolean {
+        val out = outputDirectory.resolve(ext.fileName())
+        val temporary = out.resolveSibling("${out.fileName}.tmp")
         try {
-            val out = outputDirectory.resolve(ext.fileName())
             Files.createDirectories(out.parent)
-            val fileWriter = FileWriter(out.toFile(), StandardCharsets.UTF_8)
-            gson.toJson(ext.extract(server), fileWriter)
-            fileWriter.close()
+            Files.deleteIfExists(temporary)
+            FileWriter(temporary.toFile(), StandardCharsets.UTF_8).use { fileWriter ->
+                gson.toJson(ext.extract(server), fileWriter)
+            }
+            try {
+                Files.move(
+                    temporary,
+                    out,
+                    StandardCopyOption.REPLACE_EXISTING,
+                    StandardCopyOption.ATOMIC_MOVE
+                )
+            } catch (_: AtomicMoveNotSupportedException) {
+                Files.move(temporary, out, StandardCopyOption.REPLACE_EXISTING)
+            }
             logger.info("Wrote " + out.toAbsolutePath())
+            return true
         } catch (e: java.lang.Exception) {
             logger.error("Extractor for \"${ext.fileName()}\" failed.", e)
+            Files.deleteIfExists(temporary)
+            return !ext.required
         }
     }
 
     interface Extractor {
+        val required: Boolean
+            get() = false
+
         fun fileName(): String
 
         @Throws(Exception::class)
