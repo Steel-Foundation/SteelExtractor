@@ -666,13 +666,12 @@ class Blocks : SteelExtractor.Extractor {
 
             val spreadChance = igniteOddsMethod.invoke(fireBlock, defaultState) as Int
             val burnChance = burnOddsMethod.invoke(fireBlock, defaultState) as Int
-            if (spreadChance > 0 || burnChance > 0) {
-                val flammabilityJson = JsonObject().apply {
-                    addProperty("spread_chance", spreadChance)
-                    addProperty("burn_chance", burnChance)
-                }
-                blockJson.add("flammability", flammabilityJson)
+            val flammabilityJson = JsonObject().apply {
+                addProperty("spread_chance", spreadChance)
+                addProperty("burn_chance", burnChance)
             }
+            blockJson.add("flammability", flammabilityJson)
+            
             // Only add if there are actual differences
             if (behaviourJson.size() > 0) {
                 blockJson.add("behavior_properties", behaviourJson)
