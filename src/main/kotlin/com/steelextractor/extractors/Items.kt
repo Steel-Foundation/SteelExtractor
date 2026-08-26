@@ -11,10 +11,8 @@ import net.minecraft.resources.RegistryOps
 import net.minecraft.server.MinecraftServer
 import net.minecraft.world.item.BlockItem
 import net.minecraft.world.item.Item
-import net.minecraft.world.item.SignItem
 import net.minecraft.world.item.StandingAndWallBlockItem
 import net.minecraft.world.level.block.Block
-import net.minecraft.world.level.block.SignBlock
 import org.slf4j.LoggerFactory
 import java.lang.reflect.Field
 

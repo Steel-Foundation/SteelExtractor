@@ -112,8 +112,6 @@ class MapDecorationTypeRegistryExtractor : SteelExtractor.Extractor {
         return extractBuiltInRegistry(BuiltInRegistries.MAP_DECORATION_TYPE) { type: MapDecorationType, json ->
             json.addProperty("asset_id", type.assetId().toString())
             json.addProperty("show_on_item_frame", type.showOnItemFrame())
-            json.addProperty("map_color", type.mapColor())
-            json.addProperty("exploration_map_element", type.explorationMapElement())
             json.addProperty("track_count", type.trackCount())
         }
     }

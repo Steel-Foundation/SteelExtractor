@@ -8,7 +8,6 @@
 		"ChunkAccessBiomeCacheMixin",
 		"ClimateRTreeMixin",
 		"BiomeSourcePossibleBiomesMixin",
-		"AxeItemAccessor",
 		"VegetationPatchFeatureMixin",
 		"WaterloggedVegetationPatchFeatureMixin",
 		"TreeFeatureMixin",

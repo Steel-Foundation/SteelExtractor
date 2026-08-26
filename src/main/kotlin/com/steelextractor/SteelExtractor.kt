@@ -430,7 +430,7 @@ object SteelExtractor : ModInitializer {
                 val runningLightFeatureQueue = cluster.featureQueue.isEmpty() && cluster.lightFeatureQueue.isNotEmpty()
                 val (queue, status, batchSize) = when {
                     cluster.carverQueue.isNotEmpty() -> {
-                        Triple(cluster.carverQueue, ChunkStatus.CARVERS, CARVER_CHUNKS_PER_TICK)
+                        Triple(cluster.carverQueue, ChunkStatus.TERRAIN, CARVER_CHUNKS_PER_TICK)
                     }
                     cluster.featureQueue.isNotEmpty() -> {
                         Triple(cluster.featureQueue, ChunkStatus.FEATURES, FEATURE_CHUNKS_PER_TICK)
