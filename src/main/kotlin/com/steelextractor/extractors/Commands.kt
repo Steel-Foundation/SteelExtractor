@@ -9,7 +9,8 @@ import net.minecraft.server.MinecraftServer
 
 class Commands : SteelExtractor.Extractor {
     override fun fileName(): String {
-        return "steel-core/build/commands.json"
+        // This should be placed in the Steel-Docs repository.
+        return "commands.json"
     }
 
     override fun extract(server: MinecraftServer): JsonElement {
