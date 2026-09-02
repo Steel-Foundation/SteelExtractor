@@ -42,6 +42,7 @@ import com.steelextractor.extractors.PoiTypesExtractor
 import com.steelextractor.extractors.Potions
 import com.steelextractor.extractors.StatTypeRegistryExtractor
 import com.steelextractor.extractors.StructureStarts
+import com.steelextractor.extractors.SuspiciousStewEffects
 import com.steelextractor.extractors.Tags
 import com.steelextractor.extractors.Waxables
 import kotlinx.io.IOException
@@ -218,6 +219,7 @@ object SteelExtractor : ModInitializer {
         addUnlessDisabled("BLOCK_ENTITIES") { BlockEntities() }
         addUnlessDisabled("DATA_COMPONENTS") { DataComponents() }
         addUnlessDisabled("ITEMS") { Items() }
+        addUnlessDisabled("SUSPICIOUS_STEW_EFFECTS") { SuspiciousStewEffects() }
         addUnlessDisabled("PARTICLE_TYPES") { ParticleTypeRegistryExtractor() }
         addUnlessDisabled("POSITION_SOURCE_TYPES") { PositionSourceTypeRegistryExtractor() }
         addUnlessDisabled("VILLAGER_TYPES") { VillagerTypeRegistryExtractor() }
