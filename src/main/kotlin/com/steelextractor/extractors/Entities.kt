@@ -142,6 +142,7 @@ class Entities : SteelExtractor.Extractor {
                 entityTypeJson.addProperty("allowed_in_peaceful", entityType.isAllowedInPeaceful())
                 entityTypeJson.addProperty("can_serialize", entityType.canSerialize())
                 entityTypeJson.addProperty("can_spawn_far_from_player", entityType.canSpawnFarFromPlayer())
+                entityTypeJson.addProperty("only_op_can_set_nbt", entityType.onlyOpCanSetNbt())
 
                 // Synched data
                 entityTypeJson.add("synched_data", extractSynchedData(entityType, world))
