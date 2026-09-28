@@ -20,9 +20,7 @@ import java.util.Set;
 public class ChunkStepMixin {
 
     private static final Set<ChunkStatus> IMMEDIATE_HASH_STAGES = Set.of(
-        ChunkStatus.NOISE,
-        ChunkStatus.SURFACE,
-        ChunkStatus.CARVERS
+        ChunkStatus.TERRAIN
     );
 
     @Shadow

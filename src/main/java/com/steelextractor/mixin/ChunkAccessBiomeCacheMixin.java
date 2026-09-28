@@ -2,7 +2,6 @@ package com.steelextractor.mixin;
 
 import com.steelextractor.BiomeCacheReset;
 import net.minecraft.world.level.biome.BiomeResolver;
-import net.minecraft.world.level.biome.Climate;
 import net.minecraft.world.level.biome.MultiNoiseBiomeSource;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import org.spongepowered.asm.mixin.Mixin;
@@ -18,7 +17,7 @@ public abstract class ChunkAccessBiomeCacheMixin {
      * its R-tree warm-start within the chunk, but not across chunk boundaries.
      */
     @Inject(method = "fillBiomesFromNoise", at = @At("HEAD"))
-    private void resetBiomeCacheForChunk(BiomeResolver biomeResolver, Climate.Sampler sampler, CallbackInfo ci) {
+    private void resetBiomeCacheForChunk(BiomeResolver biomeResolver, CallbackInfo ci) {
         if (biomeResolver instanceof MultiNoiseBiomeSource) {
             BiomeCacheReset.markNeeded();
         }
