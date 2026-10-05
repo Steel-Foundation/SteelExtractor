@@ -20,7 +20,7 @@ class Tags : SteelExtractor.Extractor {
         val blockTagsJson = JsonObject()
 
         BuiltInRegistries.BLOCK.getTags().forEach { namedHolderSet ->
-            if (namedHolderSet.size() > 0) {
+            if (namedHolderSet.size() > 0 && namedHolderSet.key().location().namespace != "minecraft") {
                 val entriesArray = JsonArray()
                 namedHolderSet.stream().forEach { holder ->
                     holder.unwrapKey().ifPresent { key ->
@@ -34,7 +34,7 @@ class Tags : SteelExtractor.Extractor {
 
         val itemTagsJson = JsonObject()
         BuiltInRegistries.ITEM.getTags().forEach { namedHolderSet ->
-            if (namedHolderSet.size() > 0) {
+            if (namedHolderSet.size() > 0 && namedHolderSet.key().location().namespace != "minecraft") {
                 val entriesArray = JsonArray()
                 namedHolderSet.stream().forEach { holder ->
                     holder.unwrapKey().ifPresent { key ->
