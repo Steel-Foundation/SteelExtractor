@@ -22,9 +22,9 @@ import net.minecraft.world.entity.EntityType
 import net.minecraft.world.entity.LivingEntity
 import net.minecraft.world.entity.Pose
 import net.minecraft.world.entity.player.Player
+import net.minecraft.world.entity.monster.zombie.ZombieVillager
 import net.minecraft.world.entity.npc.villager.Villager
 import net.minecraft.world.entity.npc.villager.VillagerData
-import net.minecraft.world.entity.monster.zombie.ZombieVillager
 import net.minecraft.world.entity.ai.attributes.Attributes
 import net.minecraft.world.entity.ai.attributes.DefaultAttributes
 import net.minecraft.world.entity.boss.enderdragon.EnderDragon
@@ -141,8 +141,8 @@ class Entities : SteelExtractor.Extractor {
                 entityTypeJson.addProperty("summonable", entityType.canSummon())
                 entityTypeJson.addProperty("allowed_in_peaceful", entityType.isAllowedInPeaceful())
                 entityTypeJson.addProperty("can_serialize", entityType.canSerialize())
-                entityTypeJson.addProperty("can_spawn_far_from_player", entityType.canSpawnFarFromPlayer())
                 entityTypeJson.addProperty("only_op_can_set_nbt", entityType.onlyOpCanSetNbt())
+                entityTypeJson.addProperty("can_spawn_far_from_player", entityType.canSpawnFarFromPlayer())
 
                 // Synched data
                 entityTypeJson.add("synched_data", extractSynchedData(entityType, world))
@@ -218,25 +218,24 @@ class Entities : SteelExtractor.Extractor {
             val serializerId = EntityDataSerializers.getSerializedId(accessor.serializer())
             val index = accessor.id()
             val accessorInfo = accessorNames[index]
-            // Vanilla selects this profession randomly while defining synchronized data. Record
-            // its stable base plus a runtime initializer instead of this entity's sampled value.
             val runtimeInitializer = if (
                 entity is ZombieVillager && accessorInfo?.rawFieldName == "DATA_VILLAGER_DATA"
-            ) {
-                "random_villager_profession"
+            ) "random_villager_profession" else null
+            val defaultValue = if (runtimeInitializer != null) {
+                Villager.createDefaultVillagerData()
             } else {
-                null
+                initialValueField.get(dataItem)
             }
-            val defaultValue = runtimeInitializer?.let { Villager.createDefaultVillagerData() }
-                ?: initialValueField.get(dataItem)
             val fieldJson = synchedFieldJson(
                 index,
                 accessorInfo?.fieldName ?: "unknown",
                 accessorInfo?.rawFieldName,
                 serializerId,
-                defaultValue,
-                runtimeInitializer
+                defaultValue
             )
+            if (runtimeInitializer != null) {
+                fieldJson.addProperty("runtime_initializer", runtimeInitializer)
+            }
 
             if (accessorInfo == null) {
                 unresolvedFields.add(fieldJson)
@@ -259,6 +258,7 @@ class Entities : SteelExtractor.Extractor {
                 serializerId,
                 null
             )
+            annotateRuntimeInitializer(accessorInfo, fieldJson)
             fieldsByClass.getOrPut(accessorInfo.declaringClass) { mutableListOf() }.add(fieldJson)
         }
 
@@ -300,8 +300,7 @@ class Entities : SteelExtractor.Extractor {
         fieldName: String,
         accessorField: String?,
         serializerId: Int,
-        defaultValue: Any?,
-        runtimeInitializer: String? = null
+        defaultValue: Any?
     ): JsonObject {
         val fieldJson = JsonObject()
         fieldJson.addProperty("index", index)
@@ -312,10 +311,18 @@ class Entities : SteelExtractor.Extractor {
         fieldJson.addProperty("serializer_id", serializerId)
         fieldJson.addProperty("serializer", serializerNames[serializerId] ?: "unknown")
         fieldJson.add("default_value", serializeDefaultValue(defaultValue))
-        if (runtimeInitializer != null) {
-            fieldJson.addProperty("runtime_initializer", runtimeInitializer)
-        }
         return fieldJson
+    }
+
+    private fun annotateRuntimeInitializer(accessor: SynchedAccessorInfo, fieldJson: JsonObject) {
+        // ZombieVillager defines this synced value through
+        // initializeZombieVillagerData(this.random), rather than a static default.
+        if (
+            accessor.declaringClass == ZombieVillager::class.java &&
+            accessor.rawFieldName == "DATA_VILLAGER_DATA"
+        ) {
+            fieldJson.addProperty("runtime_initializer", "random_villager_profession")
+        }
     }
 
     private fun entityJavaClass(entityType: EntityType<*>, entity: Entity?): Class<out Entity>? {
@@ -476,7 +483,6 @@ class Entities : SteelExtractor.Extractor {
             // List of all known attributes to check
             val attributeHolders = listOf(
                 Attributes.MAX_HEALTH,
-                Attributes.MAX_ABSORPTION,
                 Attributes.FOLLOW_RANGE,
                 Attributes.KNOCKBACK_RESISTANCE,
                 Attributes.MOVEMENT_SPEED,
@@ -486,6 +492,7 @@ class Entities : SteelExtractor.Extractor {
                 Attributes.ATTACK_SPEED,
                 Attributes.ARMOR,
                 Attributes.ARMOR_TOUGHNESS,
+                Attributes.MAX_ABSORPTION,
                 Attributes.LUCK,
                 Attributes.SPAWN_REINFORCEMENTS_CHANCE,
                 Attributes.JUMP_STRENGTH,
@@ -506,6 +513,14 @@ class Entities : SteelExtractor.Extractor {
                 Attributes.BURNING_TIME,
                 Attributes.EXPLOSION_KNOCKBACK_RESISTANCE,
                 Attributes.MOVEMENT_EFFICIENCY,
+                Attributes.CAMERA_DISTANCE,
+                Attributes.WAYPOINT_TRANSMIT_RANGE,
+                Attributes.WAYPOINT_RECEIVE_RANGE,
+                Attributes.BOUNCINESS,
+                Attributes.AIR_DRAG_MODIFIER,
+                Attributes.FRICTION_MODIFIER,
+                Attributes.NAME_TAG_DISTANCE,
+                Attributes.BELOW_NAME_DISTANCE,
                 Attributes.TEMPT_RANGE
             )
 
@@ -538,7 +553,7 @@ class Entities : SteelExtractor.Extractor {
         flagsJson.addProperty("is_pushed_by_fluid", entity.isPushedByFluid())
         flagsJson.addProperty("can_freeze", entity.canFreeze())
         flagsJson.addProperty("can_be_hit_by_projectile", entity.canBeHitByProjectile())
-        flagsJson.addProperty("piston_push_reaction", entity.pistonPushReaction.name)
+        flagsJson.addProperty("piston_push_reaction", entity.getPistonPushReaction().name)
 
         if (entity is LivingEntity) {
             flagsJson.addProperty("is_sensitive_to_water", entity.isSensitiveToWater)

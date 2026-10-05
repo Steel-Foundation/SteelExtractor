@@ -4,17 +4,15 @@ import com.google.gson.GsonBuilder
 import com.google.gson.JsonElement
 import com.steelextractor.extractors.Attributes
 import com.steelextractor.extractors.Classes
+import com.steelextractor.extractors.DataComponents
 import com.steelextractor.extractors.BlockEntities
 import com.steelextractor.extractors.Blocks
 import com.steelextractor.extractors.Entities
-import com.steelextractor.extractors.EntityVariantRegistries
 import com.steelextractor.extractors.EntityEvents
-import com.steelextractor.extractors.DataComponents
 import com.steelextractor.extractors.Fluids
 import com.steelextractor.extractors.GameRulesExtractor
 import com.steelextractor.extractors.Items
 import com.steelextractor.extractors.ParticleTypeRegistryExtractor
-import com.steelextractor.extractors.PositionSourceTypeRegistryExtractor
 import com.steelextractor.extractors.MenuTypes
 import com.steelextractor.extractors.MobEffects
 import com.steelextractor.extractors.Packets
@@ -24,24 +22,28 @@ import com.steelextractor.extractors.SoundTypes
 import com.steelextractor.extractors.MultiNoiseBiomeParameters
 import com.steelextractor.extractors.BiomeHashes
 import com.steelextractor.extractors.VillagerProfessionRegistryExtractor
-import com.steelextractor.extractors.MapDecorationTypeRegistryExtractor
 import com.steelextractor.extractors.VillagerTypeRegistryExtractor
 import com.steelextractor.extractors.CandleCakes
 import com.steelextractor.extractors.ChunkStageHashes
 import com.steelextractor.extractors.CustomStatRegistryExtractor
 import com.steelextractor.extractors.Commands
+import com.steelextractor.extractors.EntityVariantRegistries
+import com.steelextractor.extractors.MapDecorationTypeRegistryExtractor
+import com.steelextractor.extractors.PositionSourceTypeRegistryExtractor
+import com.steelextractor.extractors.StatTypeRegistryExtractor
 import com.steelextractor.extractors.GameEvents
 import com.steelextractor.extractors.Weathering
-import com.steelextractor.extractors.Strippables
 import net.minecraft.resources.ResourceKey
+import net.minecraft.server.level.ChunkLevel
 import net.minecraft.server.level.ServerLevel
+import net.minecraft.server.level.Ticket
+import net.minecraft.server.level.TicketType
 import net.minecraft.world.level.ChunkPos
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.chunk.ChunkAccess
 import net.minecraft.world.level.chunk.status.ChunkStatus
 import com.steelextractor.extractors.PoiTypesExtractor
 import com.steelextractor.extractors.Potions
-import com.steelextractor.extractors.StatTypeRegistryExtractor
 import com.steelextractor.extractors.StructureStarts
 import com.steelextractor.extractors.Tags
 import com.steelextractor.extractors.Waxables
@@ -59,17 +61,22 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.concurrent.CompletableFuture
 import kotlin.random.Random
-import kotlin.system.exitProcess
 import kotlin.system.measureTimeMillis
 
 object SteelExtractor : ModInitializer {
     private val logger = LoggerFactory.getLogger("steel-extractor")
 
     /** Set to false to skip chunk generation and chunk stage hash extraction. */
-    private val ENABLE_CHUNK_EXTRACTION = envFlag("STEEL_EXTRACTOR_ENABLE_CHUNK_EXTRACTION")
+    private val ENABLE_CHUNK_EXTRACTION = envFlag(
+        "STEEL_EXTRACTOR_ENABLE_CHUNK_EXTRACTION",
+        defaultValue = true
+    )
 
     /** Set to false to skip storing per-chunk block data in memory and writing binary dump files. */
-    private val ENABLE_BINARY_DUMP = envFlag("STEEL_EXTRACTOR_ENABLE_BINARY_DUMP")
+    private val ENABLE_BINARY_DUMP = envFlag(
+        "STEEL_EXTRACTOR_ENABLE_BINARY_DUMP",
+        defaultValue = true
+    )
 
     /** Sampling parameters: place random CLUSTER_SIZE x CLUSTER_SIZE clusters within a SAMPLE_HALF_RANGE*2 x SAMPLE_HALF_RANGE*2 area. */
     const val CHUNK_SAMPLE_SEED: Long = 123456
@@ -78,7 +85,7 @@ object SteelExtractor : ModInitializer {
     private const val NUM_CLUSTERS: Int = 25 // 25 clusters * 100 = 2,500 chunks
     const val NUM_SAMPLE_CHUNKS: Int = NUM_CLUSTERS * CHUNKS_PER_CLUSTER
     private const val SAMPLE_HALF_RANGE: Int = 500_000 // 1000,000x1000,000 chunk area
-    private const val CARVER_CHUNKS_PER_TICK = CHUNKS_PER_CLUSTER
+    private const val TERRAIN_CHUNKS_PER_TICK = CHUNKS_PER_CLUSTER
     private const val FEATURE_CHUNKS_PER_TICK = CHUNKS_PER_CLUSTER
     private const val LIGHT_CHUNKS_PER_TICK = CHUNKS_PER_CLUSTER
     private const val LIGHT_FEATURE_CHUNKS_PER_TICK = CHUNKS_PER_CLUSTER
@@ -89,6 +96,7 @@ object SteelExtractor : ModInitializer {
     private const val DEBUG_CLUSTER_ENV = "STEEL_EXTRACTOR_DEBUG_CLUSTER"
     private const val DEBUG_DIMENSION_ENV = "STEEL_EXTRACTOR_DEBUG_DIMENSION"
     private const val DEBUG_SKIP_IMMEDIATE_ENV = "STEEL_EXTRACTOR_SKIP_IMMEDIATE"
+    private const val EXIT_ON_COMPLETE_ENV = "STEEL_EXTRACTOR_EXIT_ON_COMPLETE"
     const val LIGHT_DEPENDENCY_RADIUS: Int = 1
 
     /** Generate the same sampled chunk clusters used by chunk stage hash extraction. */
@@ -160,9 +168,20 @@ object SteelExtractor : ModInitializer {
         return ChunkPos(x, z)
     }
 
-    private fun envFlag(name: String): Boolean {
-        val value = System.getenv(name)?.takeIf { it.isNotBlank() } ?: return false
-        return value == "1" || value.equals("true", ignoreCase = true) || value.equals("yes", ignoreCase = true)
+    private fun envFlag(name: String, defaultValue: Boolean = false): Boolean {
+        val value = System.getenv(name)?.takeIf { it.isNotBlank() } ?: return defaultValue
+        return when {
+            value == "1" || value.equals("true", ignoreCase = true) || value.equals("yes", ignoreCase = true) -> true
+            value == "0" || value.equals("false", ignoreCase = true) || value.equals("no", ignoreCase = true) -> false
+            else -> error("$name must be one of 1, 0, true, false, yes, or no; got '$value'")
+        }
+    }
+
+    private fun stopWhenComplete(server: MinecraftServer) {
+        if (!envFlag(EXIT_ON_COMPLETE_ENV)) return
+
+        logger.info("Exiting because $EXIT_ON_COMPLETE_ENV is enabled")
+        server.halt(false)
     }
 
     private data class LightCaptureProbe(
@@ -194,6 +213,13 @@ object SteelExtractor : ModInitializer {
         return LightCaptureProbe(missingChunks, samples)
     }
 
+    private fun retainLightChunks(level: ServerLevel, positions: List<ChunkPos>) {
+        val ticket = Ticket(TicketType.UNKNOWN, ChunkLevel.byStatus(ChunkStatus.LIGHT))
+        for (pos in positions) {
+            level.chunkSource.addTicket(ticket, pos)
+        }
+    }
+
     override fun onInitialize() {
         logger.info("Hello Fabric world!")
 
@@ -204,8 +230,7 @@ object SteelExtractor : ModInitializer {
         logger.info(test2.toString())
 
         // Build immediate extractors list conditionally. To disable a particular extractor,
-        // set the environment variable STEEL_EXTRACTOR_DISABLE_<NAME>=1 (or true/yes).
-        // Example: STEEL_EXTRACTOR_DISABLE_BLOCKS=1
+        // set STEEL_EXTRACTOR_DISABLE_<NAME>=1 (or true/yes).
         val immediateExtractors = mutableListOf<Extractor>()
         fun addUnlessDisabled(name: String, supplier: () -> Extractor) {
             if (envFlag("STEEL_EXTRACTOR_DISABLE_$name")) {
@@ -218,8 +243,8 @@ object SteelExtractor : ModInitializer {
         addUnlessDisabled("BLOCKS") { Blocks() }
         addUnlessDisabled("BLOCK_ENTITIES") { BlockEntities() }
         addUnlessDisabled("COMMANDS") { Commands() }
-        addUnlessDisabled("DATA_COMPONENTS") { DataComponents() }
         addUnlessDisabled("ITEMS") { Items() }
+        addUnlessDisabled("DATA_COMPONENTS") { DataComponents() }
         addUnlessDisabled("PARTICLE_TYPES") { ParticleTypeRegistryExtractor() }
         addUnlessDisabled("POSITION_SOURCE_TYPES") { PositionSourceTypeRegistryExtractor() }
         addUnlessDisabled("VILLAGER_TYPES") { VillagerTypeRegistryExtractor() }
@@ -243,7 +268,6 @@ object SteelExtractor : ModInitializer {
         addUnlessDisabled("LEVEL_EVENTS") { LevelEvents() }
         addUnlessDisabled("TAGS") { Tags() }
         addUnlessDisabled("STRUCTURE_STARTS") { StructureStarts() }
-        addUnlessDisabled("STRIPPABLES") { Strippables() }
         addUnlessDisabled("WEATHERING") { Weathering() }
         addUnlessDisabled("CANDLE_CAKES") { CandleCakes() }
         addUnlessDisabled("WAXABLES") { Waxables() }
@@ -251,6 +275,7 @@ object SteelExtractor : ModInitializer {
         addUnlessDisabled("GAME_EVENTS") { GameEvents() }
         addUnlessDisabled("CUSTOM_STATS") { CustomStatRegistryExtractor() }
         addUnlessDisabled("STAT_TYPES") { StatTypeRegistryExtractor() }
+
 
         val chunkStageExtractor = ChunkStageHashes()
 
@@ -303,7 +328,7 @@ object SteelExtractor : ModInitializer {
 
         val outputDirectory: Path
         try {
-            outputDirectory = Files.createDirectories(Paths.get("steel_extractor_output"))
+            outputDirectory = Files.createDirectories(Paths.get(System.getenv("STEEL_EXTRACTOR_OUTPUT_DIRECTORY") ?: "steel_extractor_output"))
         } catch (e: IOException) {
             logger.info("Failed to create output directory.", e)
             return
@@ -326,11 +351,7 @@ object SteelExtractor : ModInitializer {
 
             if (!ENABLE_CHUNK_EXTRACTION) {
                 logger.info("All extractors complete! (chunk extraction skipped)")
-                if (envFlag("STEEL_EXTRACTOR_EXIT_ON_COMPLETE")) {
-                    logger.info("Exiting because STEEL_EXTRACTOR_EXIT_ON_COMPLETE is enabled")
-                    ServerLifecycleEvents.SERVER_STOPPING.invoker().onServerStopping(server);
-                    server.halt(false); // false means to do a graceful shutdown
-                }
+                stopWhenComplete(server)
             }
         })
 
@@ -343,7 +364,7 @@ object SteelExtractor : ModInitializer {
             val positions: List<ChunkPos>,
             val lightPositions: List<ChunkPos>,
             val lightFeaturePositions: List<ChunkPos>,
-            val carverQueue: ArrayDeque<ChunkPos>,
+            val terrainQueue: ArrayDeque<ChunkPos>,
             val featureQueue: ArrayDeque<ChunkPos>,
             val lightFeatureQueue: ArrayDeque<ChunkPos>,
             val lightQueue: ArrayDeque<ChunkPos>,
@@ -361,7 +382,7 @@ object SteelExtractor : ModInitializer {
             val dimensionKey: ResourceKey<Level>,
             val dimId: String,
             val clusters: ArrayDeque<ClusterWork>,
-            var carverProgress: Int = 0,
+            var terrainProgress: Int = 0,
             var featureProgress: Int = 0,
             var lightFeatureProgress: Int = 0,
             var lightProgress: Int = 0
@@ -370,9 +391,9 @@ object SteelExtractor : ModInitializer {
         val dimWork = dimensions.map { (dimId, key) ->
             val clusters = ArrayDeque<ClusterWork>()
             for (positions in generationClusters) {
-                val carverQueue = ArrayDeque<ChunkPos>()
+                val terrainQueue = ArrayDeque<ChunkPos>()
                 val featureQueue = ArrayDeque<ChunkPos>()
-                carverQueue.addAll(positions)
+                terrainQueue.addAll(positions)
                 featureQueue.addAll(positions)
                 val lightPositions = lightDependencyPositions(positions)
                 val lightQueue = ArrayDeque<ChunkPos>()
@@ -380,7 +401,7 @@ object SteelExtractor : ModInitializer {
                 val lightFeaturePositions = lightFeatureDependencyPositions(positions)
                 val lightFeatureQueue = ArrayDeque<ChunkPos>()
                 lightFeatureQueue.addAll(exceptPositions(lightFeaturePositions, positions))
-                clusters.add(ClusterWork(positions, lightPositions, lightFeaturePositions, carverQueue, featureQueue, lightFeatureQueue, lightQueue))
+                clusters.add(ClusterWork(positions, lightPositions, lightFeaturePositions, terrainQueue, featureQueue, lightFeatureQueue, lightQueue))
             }
             DimensionWork(key, dimId, clusters)
         }
@@ -402,7 +423,7 @@ object SteelExtractor : ModInitializer {
             // Start generation on first tick after server is ready
             if (!generationStarted) {
                 generationStarted = true
-                logger.info("Forcing deterministic generation of $totalChunks chunks across ${dimWork.size} dimensions (carvers $CARVER_CHUNKS_PER_TICK/tick, features $FEATURE_CHUNKS_PER_TICK/tick, light features $LIGHT_FEATURE_CHUNKS_PER_TICK/tick, light $LIGHT_CHUNKS_PER_TICK/tick, order x/z ascending)...")
+                logger.info("Forcing deterministic generation of $totalChunks chunks across ${dimWork.size} dimensions (terrain $TERRAIN_CHUNKS_PER_TICK/tick, features $FEATURE_CHUNKS_PER_TICK/tick, light features $LIGHT_FEATURE_CHUNKS_PER_TICK/tick, light $LIGHT_CHUNKS_PER_TICK/tick, order x/z ascending)...")
             }
 
             // Generate a batch of chunks per tick, one dimension at a time
@@ -431,8 +452,8 @@ object SteelExtractor : ModInitializer {
 
                 val runningLightFeatureQueue = cluster.featureQueue.isEmpty() && cluster.lightFeatureQueue.isNotEmpty()
                 val (queue, status, batchSize) = when {
-                    cluster.carverQueue.isNotEmpty() -> {
-                        Triple(cluster.carverQueue, ChunkStatus.CARVERS, CARVER_CHUNKS_PER_TICK)
+                    cluster.terrainQueue.isNotEmpty() -> {
+                        Triple(cluster.terrainQueue, ChunkStatus.TERRAIN, TERRAIN_CHUNKS_PER_TICK)
                     }
                     cluster.featureQueue.isNotEmpty() -> {
                         Triple(cluster.featureQueue, ChunkStatus.FEATURES, FEATURE_CHUNKS_PER_TICK)
@@ -464,12 +485,12 @@ object SteelExtractor : ModInitializer {
                         }
                         dim.lightProgress++
                     } else {
-                        dim.carverProgress++
+                        dim.terrainProgress++
                     }
                     generatedThisTick++
                 }
 
-                if (cluster.carverQueue.isEmpty() && cluster.featureQueue.isEmpty() && !cluster.featureHashesCaptured) {
+                if (cluster.terrainQueue.isEmpty() && cluster.featureQueue.isEmpty() && !cluster.featureHashesCaptured) {
                     // Mark any feature chunks loaded from disk as ready.
                     for (pos in cluster.positions) {
                         if (ChunkStageHashStorage.markReady(pos, dim.dimId)) {
@@ -490,18 +511,23 @@ object SteelExtractor : ModInitializer {
                     logger.info("Generated deterministic light dependency features for ${cluster.lightFeaturePositions.size} chunks in ${dim.dimId}")
                 }
 
-                val dimProgress = dim.carverProgress + dim.featureProgress + dim.lightFeatureProgress + dim.lightProgress
+                val dimProgress = dim.terrainProgress + dim.featureProgress + dim.lightFeatureProgress + dim.lightProgress
                 val overallProgress = currentDimIdx * (chunksPerDim * 2 + lightFeatureChunksPerDim + lightChunksPerDim) + dimProgress
                 val clusterNumber = clusterCount - dim.clusters.size + 1
-                logger.info("Chunk generation progress: $overallProgress/$totalChunkSteps (${dim.dimId}: cluster $clusterNumber/$clusterCount, carvers ${dim.carverProgress}/$chunksPerDim, features ${dim.featureProgress}/$chunksPerDim, light features ${dim.lightFeatureProgress}/$lightFeatureChunksPerDim, light ${dim.lightProgress}/$lightChunksPerDim)")
+                logger.info("Chunk generation progress: $overallProgress/$totalChunkSteps (${dim.dimId}: cluster $clusterNumber/$clusterCount, terrain ${dim.terrainProgress}/$chunksPerDim, features ${dim.featureProgress}/$chunksPerDim, light features ${dim.lightFeatureProgress}/$lightFeatureChunksPerDim, light ${dim.lightProgress}/$lightChunksPerDim)")
 
                 if (
-                    cluster.carverQueue.isEmpty() &&
+                    cluster.terrainQueue.isEmpty() &&
                     cluster.featureQueue.isEmpty() &&
                     cluster.lightFeatureQueue.isEmpty() &&
                     cluster.lightQueue.isEmpty() &&
                     !cluster.lightHashesCaptured
                 ) {
+                    // getChunk's vanilla UNKNOWN ticket expires after one server tick. Refresh it
+                    // while the asynchronous light updates settle so unloading cannot erase the
+                    // visible DataLayer map before this cluster is captured.
+                    retainLightChunks(level, cluster.lightPositions)
+
                     val barrier = cluster.pendingLightCaptureBarrier
                     if (barrier == null) {
                         val lightEngine = level.chunkSource.lightEngine
@@ -560,7 +586,7 @@ object SteelExtractor : ModInitializer {
                 }
 
                 if (
-                    cluster.carverQueue.isEmpty() &&
+                    cluster.terrainQueue.isEmpty() &&
                     cluster.featureQueue.isEmpty() &&
                     cluster.lightFeatureQueue.isEmpty() &&
                     cluster.lightQueue.isEmpty()
@@ -597,10 +623,7 @@ object SteelExtractor : ModInitializer {
                     }
                 }
                 logger.info("All extractors complete!")
-                if (envFlag("STEEL_EXTRACTOR_EXIT_ON_COMPLETE")) {
-                    logger.info("Exiting because STEEL_EXTRACTOR_EXIT_ON_COMPLETE is enabled")
-                    exitProcess(0);
-                }
+                stopWhenComplete(server)
             }
         }
     }

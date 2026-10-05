@@ -19,6 +19,7 @@ import net.minecraft.world.level.block.state.properties.NoteBlockInstrument
 import net.minecraft.world.level.block.state.properties.Property
 import net.minecraft.world.level.block.SoundType
 import net.minecraft.world.level.material.PushReaction
+import net.minecraft.world.level.material.FlowingFluid
 import net.minecraft.world.level.storage.loot.LootTable
 import net.minecraft.world.phys.AABB
 import net.minecraft.world.phys.shapes.CollisionContext
@@ -418,7 +419,7 @@ class Blocks : SteelExtractor.Extractor {
         return StateFluidProperties(
             BuiltInRegistries.FLUID.getKey(fluidState.type).path,
             fluidState.amount,
-            fluidState.getOptionalValue(BlockStateProperties.FALLING).orElse(false),
+            fluidState.hasProperty(FlowingFluid.FALLING) && fluidState.getValue(FlowingFluid.FALLING),
         )
     }
 
@@ -600,6 +601,7 @@ class Blocks : SteelExtractor.Extractor {
             behaviourJson.addProperty("friction", getPrivateFieldValue<Float>(behaviourProps, "friction"))
             behaviourJson.addProperty("speedFactor", getPrivateFieldValue<Float>(behaviourProps, "speedFactor"))
             behaviourJson.addProperty("jumpFactor", getPrivateFieldValue<Float>(behaviourProps, "jumpFactor"))
+            behaviourJson.addProperty("bounceRestitution", getPrivateFieldValue<Float>(behaviourProps, "bounceRestitution"))
             behaviourJson.addProperty("dynamicShape", getPrivateFieldValue<Boolean>(behaviourProps, "dynamicShape"))
             behaviourJson.addProperty("offsetType", getOffsetType(block).name)
             behaviourJson.addProperty("maxHorizontalOffset", getProtectedFloatMethodValue(block, "getMaxHorizontalOffset"))

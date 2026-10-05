@@ -10,34 +10,13 @@ import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.resources.RegistryOps
 import net.minecraft.server.MinecraftServer
 import net.minecraft.world.item.BlockItem
-import net.minecraft.world.item.Item
-import net.minecraft.world.item.SignItem
+import net.minecraft.world.item.Items
 import net.minecraft.world.item.StandingAndWallBlockItem
 import net.minecraft.world.level.block.Block
-import net.minecraft.world.level.block.SignBlock
-import org.slf4j.LoggerFactory
-import java.lang.reflect.Field
 
 class Items : SteelExtractor.Extractor {
-    private val logger = LoggerFactory.getLogger("steel-extractor-items")
-
     override fun fileName(): String {
         return "steel-registry/build_assets/items.json"
-    }
-
-    fun getConstantName(clazz: Class<*>, value: Any?): String? {
-        for (f in clazz.getFields()) {          // only public fields
-            try {
-                // we expect a static final constant, so no instance needed
-                val fieldValue = f.get(null)
-                if (fieldValue === value) {           // reference equality is what we want
-                    return f.getName()
-                }
-            } catch (e: IllegalAccessException) {
-                // shouldn't happen with getFields(), but ignore it just in case
-            }
-        }
-        return null // no match found
     }
 
     private fun sortJsonObjectByKeys(obj: JsonObject): JsonObject {
@@ -52,6 +31,7 @@ class Items : SteelExtractor.Extractor {
         val topLevelJson = JsonObject()
 
         val itemsJson = JsonArray()
+        val blockItemMappings = JsonObject()
 
 
         for (item in BuiltInRegistries.ITEM) {
@@ -92,19 +72,18 @@ class Items : SteelExtractor.Extractor {
             itemsJson.add(itemJson)
         }
 
-
-        val blockItemMappingsJson = JsonObject()
         for (block in BuiltInRegistries.BLOCK) {
-            val item = Item.BY_BLOCK[block] ?: continue
-            blockItemMappingsJson.addProperty(
-                BuiltInRegistries.BLOCK.getKey(block).path,
-                BuiltInRegistries.ITEM.getKey(item).path
-            )
+            val item = block.asItem()
+            if (item != Items.AIR) {
+                blockItemMappings.addProperty(
+                    BuiltInRegistries.BLOCK.getKey(block).path,
+                    BuiltInRegistries.ITEM.getKey(item).path
+                )
+            }
         }
 
-
         topLevelJson.add("items", itemsJson)
-        topLevelJson.add("blockItemMappings", blockItemMappingsJson)
+        topLevelJson.add("blockItemMappings", blockItemMappings)
 
         return topLevelJson
     }

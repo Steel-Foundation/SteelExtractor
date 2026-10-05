@@ -4,15 +4,7 @@
 	"compatibilityLevel": "JAVA_25",
 	"mixins": [
 		"ExampleMixin",
-		"ChunkStepMixin",
-		"ChunkAccessBiomeCacheMixin",
-		"ClimateRTreeMixin",
-		"BiomeSourcePossibleBiomesMixin",
-		"AxeItemAccessor",
-		"VegetationPatchFeatureMixin",
-		"WaterloggedVegetationPatchFeatureMixin",
-		"TreeFeatureMixin",
-		"FallenTreeFeatureMixin"
+		"ChunkStepMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

@@ -31,6 +31,8 @@ class Tags : SteelExtractor.Extractor {
             }
         }
         topLevelJson.add("block", blockTagsJson)
+
+        val itemTagsJson = JsonObject()
         BuiltInRegistries.ITEM.getTags().forEach { namedHolderSet ->
             if (namedHolderSet.size() > 0 && namedHolderSet.key().location().namespace != "minecraft") {
                 val entriesArray = JsonArray()
@@ -39,10 +41,10 @@ class Tags : SteelExtractor.Extractor {
                         entriesArray.add(key.identifier().toString())
                     }
                 }
-                blockTagsJson.add(namedHolderSet.key().location().toString(), entriesArray)
+                itemTagsJson.add(namedHolderSet.key().location().toString(), entriesArray)
             }
         }
-        topLevelJson.add("item", blockTagsJson)
+        topLevelJson.add("item", itemTagsJson)
         return topLevelJson
     }
 }

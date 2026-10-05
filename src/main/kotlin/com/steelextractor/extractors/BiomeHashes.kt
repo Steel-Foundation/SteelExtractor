@@ -10,6 +10,7 @@ import net.minecraft.server.level.ServerLevel
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator
 import net.minecraft.world.level.levelgen.RandomState
+import net.minecraft.world.level.levelgen.densityfunction.SamplerContext
 import org.slf4j.LoggerFactory
 import java.security.MessageDigest
 
@@ -69,13 +70,13 @@ class BiomeHashes : SteelExtractor.Extractor {
         val noiseRegistry = server.registryAccess().lookupOrThrow(Registries.NOISE)
 
         val randomState = if (chunkGenerator is NoiseBasedChunkGenerator) {
-            RandomState.create(chunkGenerator.generatorSettings().value(), noiseRegistry, SEED)
+            RandomState.create(noiseRegistry, SEED, chunkGenerator.generatorSettings().value())
         } else {
             logger.warn("Chunk generator for $name is not NoiseBasedChunkGenerator, using level's RandomState")
             level.chunkSource.randomState()
         }
 
-        val climateSampler = randomState.sampler()
+        val climateSampler = randomState.createClimateSampler(SamplerContext.EMPTY_UNCACHED)
 
         val hashesArray = JsonArray()
 
@@ -110,6 +111,16 @@ class BiomeHashes : SteelExtractor.Extractor {
         minSectionY: Int,
         maxSectionY: Int
     ): String {
+        val biomeResolver = biomeSource.createResolverForChunk(
+            climateSampler,
+            chunkX * 4,
+            minSectionY * 4,
+            chunkZ * 4,
+            4,
+            (maxSectionY - minSectionY + 1) * 4,
+            4
+        )
+
         // Step 1: Sample biomes in generation order (X outer, Y middle, Z inner)
         // to match vanilla/Steel world generation cache behavior.
         val biomes = HashMap<BiomeKey, String>()
@@ -122,7 +133,7 @@ class BiomeHashes : SteelExtractor.Extractor {
                         val quartY = sectionY * 4 + y
                         val quartZ = chunkZ * 4 + z
 
-                        val biome = biomeSource.getNoiseBiome(quartX, quartY, quartZ, climateSampler)
+                        val biome = biomeResolver.getNoiseBiome(quartX, quartY, quartZ)
                         val biomeName = biome.unwrapKey()
                             .map { it.identifier().toString() }
                             .orElse("unknown")
