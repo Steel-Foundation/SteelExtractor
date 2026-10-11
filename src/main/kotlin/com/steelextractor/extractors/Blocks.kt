@@ -601,6 +601,7 @@ class Blocks : SteelExtractor.Extractor {
             behaviourJson.addProperty("speedFactor", getPrivateFieldValue<Float>(behaviourProps, "speedFactor"))
             behaviourJson.addProperty("jumpFactor", getPrivateFieldValue<Float>(behaviourProps, "jumpFactor"))
             behaviourJson.addProperty("bounceRestitution", getPrivateFieldValue<Float>(behaviourProps, "bounceRestitution"))
+            behaviourJson.addProperty("fallDistanceReduction", getPrivateFieldValue<Float>(behaviourProps, "fallDistanceReduction"))
             behaviourJson.addProperty("dynamicShape", getPrivateFieldValue<Boolean>(behaviourProps, "dynamicShape"))
             behaviourJson.addProperty("offsetType", getOffsetType(block).name)
             behaviourJson.addProperty("maxHorizontalOffset", getProtectedFloatMethodValue(block, "getMaxHorizontalOffset"))
