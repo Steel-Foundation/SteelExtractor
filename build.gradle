@@ -114,3 +114,14 @@ tasks.register('extractJavaBlockPosSets', JavaExec) {
     jvmArgs '--add-opens=java.base/java.util=ALL-UNNAMED',
             '-XX:+UnlockExperimentalVMOptions', '-XX:hashCode=3'
 }
+
+tasks.register('extractTntExplosionOrder', JavaExec) {
+    group = 'extraction'
+    description = 'Capture the vanilla TNT explosion-order fixture as JSON'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.steelextractor.extractors.TntExplosionOrder'
+    workingDir = layout.projectDirectory.dir('run').asFile
+    doFirst {
+        java.nio.file.Files.createDirectories(workingDir.toPath())
+    }
+}
