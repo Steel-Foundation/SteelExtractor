@@ -99,3 +99,24 @@ publishing {
 		// retrieving dependencies.
 	}
 }
+
+// Collection fixtures need JVM identity hashes in insertion order; keep this isolated
+// from server/worldgen extraction so its JVM identity policy stays unchanged.
+tasks.register('extractJavaBlockPosSets', JavaExec) {
+    group = 'extraction'
+    description = 'Extract OpenJDK 25 BlockPos HashSet test fixtures as JSON'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.steelextractor.extractors.JavaBlockPosSets'
+    workingDir = layout.projectDirectory.dir('run').asFile
+    doFirst {
+        java.nio.file.Files.createDirectories(workingDir.toPath())
+    }
+    jvmArgs '--add-opens=java.base/java.util=ALL-UNNAMED',
+            '-XX:+UnlockExperimentalVMOptions', '-XX:hashCode=3'
+}
+
+// The BlockPos set fixture needs its own JVM identity-hash flags, so the normal
+// extractor run launches it before starting the server.
+tasks.named('runServer') {
+    dependsOn 'extractJavaBlockPosSets'
+}
