@@ -1,6 +1,6 @@
 # SteelExtractor
 
-`./gradlew runServer` also runs both fixture tasks below before starting the server.
+`./gradlew runServer` also runs `extractJavaBlockPosSets` before starting the server.
 
 ## Java BlockPos set test fixtures
 
@@ -20,10 +20,10 @@ keys whose JVM identity order matches insertion order.
 
 ## TNT explosion-order test fixture
 
-Run `./gradlew extractTntExplosionOrder` with Java 25. It creates a fresh vanilla
-flat GameTest level, places the obsidian-channel/TNT fixture, and captures a
-radius-four explosion with the level RNG seeded to 1. The capture runs without
-advancing entity ticks; the temporary world is closed and deleted afterward.
+Captured by the normal extractor run (`./gradlew runServer`; disable with
+`STEEL_EXTRACTOR_DISABLE_TNT_EXPLOSION_ORDER=1`). It places the obsidian-channel/TNT
+fixture near the overworld origin and captures a radius-four explosion with the level
+RNG seeded to 1, before any ticks run. The primed TNT is discarded afterward.
 
 The output is `run/steel_extractor_output/steel-core/test_assets/vanilla_tnt_order.json`.
 `STEEL_EXTRACTOR_OUTPUT_DIRECTORY` overrides the output root. Copy the produced

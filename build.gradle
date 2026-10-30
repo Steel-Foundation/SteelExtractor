@@ -115,19 +115,8 @@ tasks.register('extractJavaBlockPosSets', JavaExec) {
             '-XX:+UnlockExperimentalVMOptions', '-XX:hashCode=3'
 }
 
-tasks.register('extractTntExplosionOrder', JavaExec) {
-    group = 'extraction'
-    description = 'Capture the vanilla TNT explosion-order fixture as JSON'
-    classpath = sourceSets.main.runtimeClasspath
-    mainClass = 'com.steelextractor.extractors.TntExplosionOrder'
-    workingDir = layout.projectDirectory.dir('run').asFile
-    doFirst {
-        java.nio.file.Files.createDirectories(workingDir.toPath())
-    }
-}
-
-// Fixtures need their own JVMs (identity-hash flags, a separate GameTest server),
-// so the normal extractor run launches them before starting the server.
+// The BlockPos set fixture needs its own JVM identity-hash flags, so the normal
+// extractor run launches it before starting the server.
 tasks.named('runServer') {
-    dependsOn 'extractJavaBlockPosSets', 'extractTntExplosionOrder'
+    dependsOn 'extractJavaBlockPosSets'
 }

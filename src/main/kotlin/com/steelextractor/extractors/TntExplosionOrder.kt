@@ -1,15 +1,13 @@
 package com.steelextractor.extractors
 
-import com.google.gson.GsonBuilder
 import com.google.gson.JsonArray
+import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import net.minecraft.SharedConstants
+import com.steelextractor.SteelExtractor
 import net.minecraft.core.BlockPos
-import net.minecraft.gametest.framework.GameTestServer
-import net.minecraft.server.Bootstrap
+import net.minecraft.server.MinecraftServer
 import net.minecraft.server.level.ServerLevel
-import net.minecraft.server.packs.repository.ServerPacksSource
-import net.minecraft.util.Util
 import net.minecraft.world.entity.item.PrimedTnt
 import net.minecraft.world.level.BlockGetter
 import net.minecraft.world.level.Explosion
@@ -19,56 +17,24 @@ import net.minecraft.world.level.block.Block
 import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.world.level.gamerules.GameRules
-import net.minecraft.world.level.storage.LevelStorageSource
 import net.minecraft.world.phys.Vec3
 import java.nio.charset.StandardCharsets
-import java.nio.file.Files
-import java.nio.file.Path
 import java.security.MessageDigest
 import java.util.HexFormat
-import java.util.Optional
 
-/** Captures the radius-four TNT fixture in a fresh vanilla flat GameTest level. */
-object TntExplosionOrder {
-    private const val SEED = 1L
-    private const val RADIUS = 4.0F
+/** Captures the radius-four TNT fixture inside an obsidian box in the overworld. */
+class TntExplosionOrder : SteelExtractor.Extractor {
+    private val SEED = 1L
+    private val RADIUS = 4.0F
     private val TNT_POSITIONS = listOf(BlockPos(6, 65, 9), BlockPos(10, 65, 5), BlockPos(8, 65, 7))
     private val calculatePositions = ServerExplosion::class.java
         .getDeclaredMethod("calculateExplodedPositions").apply { isAccessible = true }
     private val interactWithBlocks = ServerExplosion::class.java
         .getDeclaredMethod("interactWithBlocks", List::class.java).apply { isAccessible = true }
 
-    @JvmStatic
-    fun main(args: Array<String>) {
-        require(args.isEmpty()) { "Use STEEL_EXTRACTOR_OUTPUT_DIRECTORY to select an output directory" }
-        check(Runtime.version().feature() == 25) { "TNT fixture capture requires Java 25" }
-        SharedConstants.tryDetectVersion()
-        val worldDirectory = Files.createTempDirectory(Path.of("."), "tnt-explosion-")
-        try {
-            Bootstrap.bootStrap()
-            val storage = LevelStorageSource.createDefault(worldDirectory).createAccess("capture")
-            val packs = ServerPacksSource.createPackRepository(storage)
-            val result = GameTestServer.create(Thread.currentThread(), storage, packs, Optional.empty(), false, 1).use { server ->
-                // Initialize vanilla's real flat levels without advancing entity ticks or running GameTests.
-                val initialize = GameTestServer::class.java.getDeclaredMethod("initServer").apply { isAccessible = true }
-                check(initialize.invoke(server) as Boolean) { "Vanilla GameTest server initialization failed" }
-                capture(server.overworld())
-            }
-            val directory = Path.of(System.getenv("STEEL_EXTRACTOR_OUTPUT_DIRECTORY") ?: "steel_extractor_output")
-            val output = directory.resolve("steel-core/test_assets/vanilla_tnt_order.json")
-            Files.createDirectories(output.parent)
-            Files.newBufferedWriter(output, StandardCharsets.UTF_8).use { writer ->
-                GsonBuilder().disableHtmlEscaping().setPrettyPrinting().create().toJson(result, writer)
-                writer.appendLine()
-            }
-            println("Wrote ${output.toAbsolutePath()}")
-        } finally {
-            Util.shutdownExecutors()
-            Files.walk(worldDirectory).use { paths ->
-                paths.sorted(Comparator.reverseOrder()).forEach { Files.delete(it) }
-            }
-        }
-    }
+    override fun fileName(): String = "steel-core/test_assets/vanilla_tnt_order.json"
+
+    override fun extract(server: MinecraftServer): JsonElement = capture(server.overworld())
 
     private fun capture(level: ServerLevel): JsonObject {
         check(level.gameRules.get(GameRules.TNT_EXPLODES)) { "The fixture requires TNT explosions to be enabled" }
@@ -112,6 +78,7 @@ object TntExplosionOrder {
         check(primed.map { it.blockPosition() } == callbacks.filter { it in TNT_POSITIONS }) {
             "TNT entities must be created in callback order"
         }
+        primed.forEach { it.discard() }
         val insertions = buildString {
             for (pos in calculator.insertions) append("${pos.x} ${pos.y} ${pos.z}\n")
         }

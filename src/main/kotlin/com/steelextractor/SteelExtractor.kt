@@ -33,6 +33,7 @@ import com.steelextractor.extractors.PositionSourceTypeRegistryExtractor
 import com.steelextractor.extractors.StatTypeRegistryExtractor
 import com.steelextractor.extractors.GameEvents
 import com.steelextractor.extractors.Weathering
+import com.steelextractor.extractors.TntExplosionOrder
 import net.minecraft.resources.ResourceKey
 import net.minecraft.server.level.ChunkLevel
 import net.minecraft.server.level.ServerLevel
@@ -275,6 +276,7 @@ object SteelExtractor : ModInitializer {
         addUnlessDisabled("GAME_EVENTS") { GameEvents() }
         addUnlessDisabled("CUSTOM_STATS") { CustomStatRegistryExtractor() }
         addUnlessDisabled("STAT_TYPES") { StatTypeRegistryExtractor() }
+        addUnlessDisabled("TNT_EXPLOSION_ORDER") { TntExplosionOrder() }
 
 
         val chunkStageExtractor = ChunkStageHashes()
