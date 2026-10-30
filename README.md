@@ -1,5 +1,7 @@
 # SteelExtractor
 
+`./gradlew runServer` also runs both fixture tasks below before starting the server.
+
 ## Java BlockPos set test fixtures
 
 Run `./gradlew extractJavaBlockPosSets` with Java 25. This dedicated task supplies

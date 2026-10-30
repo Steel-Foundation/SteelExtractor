@@ -125,3 +125,9 @@ tasks.register('extractTntExplosionOrder', JavaExec) {
         java.nio.file.Files.createDirectories(workingDir.toPath())
     }
 }
+
+// Fixtures need their own JVMs (identity-hash flags, a separate GameTest server),
+// so the normal extractor run launches them before starting the server.
+tasks.named('runServer') {
+    dependsOn 'extractJavaBlockPosSets', 'extractTntExplosionOrder'
+}
