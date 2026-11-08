@@ -20,6 +20,7 @@ import net.minecraft.world.entity.Entity
 import net.minecraft.world.entity.EntityAttachment
 import net.minecraft.world.entity.EntityType
 import net.minecraft.world.entity.LivingEntity
+import net.minecraft.world.entity.Mob
 import net.minecraft.world.entity.Pose
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.entity.monster.zombie.ZombieVillager
@@ -415,45 +416,22 @@ class Entities : SteelExtractor.Extractor {
         return attachmentsJson
     }
 
+    // The standing dimensions of `entity` as a baby, or null if it cannot be one.
     private fun extractBabyDimensions(entity: LivingEntity): JsonObject? {
+        if (entity !is Mob) return null
+        entity.setBaby(true)
+        if (!entity.isBaby) return null
         try {
-            // Get the age scale method via reflection to check if this entity supports babies
-            val getAgeScaleMethod = LivingEntity::class.java.getDeclaredMethod("getAgeScale")
-            getAgeScaleMethod.isAccessible = true
-            val currentAgeScale = getAgeScaleMethod.invoke(entity) as Float
-
-            // If age scale is 1.0, the entity is adult - try to get baby scale
-            // Most baby mobs have 0.5 scale
-            if (currentAgeScale == 1.0f) {
-                // Check if entity has setBaby method (AgeableMob)
-                val setBabyMethod = try {
-                    entity::class.java.getMethod("setBaby", Boolean::class.java)
-                } catch (_: NoSuchMethodException) {
-                    null
-                }
-
-                if (setBabyMethod != null) {
-                    // Set to baby, get dimensions, then restore
-                    setBabyMethod.invoke(entity, true)
-                    entity.refreshDimensions()
-
-                    val babyDimensions = entity.getDimensions(Pose.STANDING)
-                    val babyJson = JsonObject()
-                    babyJson.addProperty("width", babyDimensions.width())
-                    babyJson.addProperty("height", babyDimensions.height())
-                    babyJson.addProperty("eye_height", babyDimensions.eyeHeight())
-
-                    // Restore to adult
-                    setBabyMethod.invoke(entity, false)
-                    entity.refreshDimensions()
-
-                    return babyJson
-                }
-            }
-        } catch (_: Exception) {
-            // Entity doesn't support baby dimensions
+            val babyDimensions = entity.getDimensions(Pose.STANDING)
+            val babyJson = JsonObject()
+            babyJson.addProperty("width", babyDimensions.width())
+            babyJson.addProperty("height", babyDimensions.height())
+            babyJson.addProperty("eye_height", babyDimensions.eyeHeight())
+            babyJson.add("attachments", extractAttachments(babyDimensions))
+            return babyJson
+        } finally {
+            entity.setBaby(false)
         }
-        return null
     }
 
     private fun extractDragonParts(dragon: EnderDragon): JsonArray {
