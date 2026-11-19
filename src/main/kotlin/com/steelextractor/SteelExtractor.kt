@@ -88,6 +88,7 @@ object SteelExtractor : ModInitializer {
     const val CHUNK_SAMPLE_SEED: Long = 123456
     private const val CLUSTER_SIZE: Int = 10 // 10x10 chunks per cluster
     private const val CHUNKS_PER_CLUSTER: Int = CLUSTER_SIZE * CLUSTER_SIZE
+    private val SPAWN_HASH_CLUSTER_ORIGINS = listOf(ChunkPos(32, 32), ChunkPos(60, -180))
     private const val NUM_CLUSTERS: Int = 25 // 25 clusters * 100 = 2,500 chunks
     const val NUM_SAMPLE_CHUNKS: Int = NUM_CLUSTERS * CHUNKS_PER_CLUSTER
     private const val SAMPLE_HALF_RANGE: Int = 500_000 // 1000,000x1000,000 chunk area
@@ -290,30 +291,39 @@ object SteelExtractor : ModInitializer {
 
         val chunkStageExtractor = ChunkStageHashes()
 
-        val allDimensions = listOf(
+        val spawnHashDimensions = listOf(
             "minecraft:overworld" to Level.OVERWORLD,
-            "minecraft:the_nether" to Level.NETHER,
-            "minecraft:the_end" to Level.END
+            "minecraft:the_nether" to Level.NETHER
         )
+        val allDimensions = spawnHashDimensions + ("minecraft:the_end" to Level.END)
 
-        val debugDimension = System.getenv(DEBUG_DIMENSION_ENV)?.takeIf { it.isNotBlank() }
-        val dimensions = if (debugDimension == null) {
-            allDimensions
-        } else {
-            val selected = allDimensions.filter { (dimId, _) -> dimId == debugDimension }
-            require(selected.isNotEmpty()) {
-                "$DEBUG_DIMENSION_ENV must be one of ${allDimensions.joinToString { it.first }}"
+        val debugDimensions = System.getenv(DEBUG_DIMENSION_ENV)
+            ?.split(",")
+            ?.map(String::trim)
+            ?.filter(String::isNotEmpty)
+            ?.toSet()
+            .orEmpty()
+        val dimensions = when {
+            debugDimensions.isNotEmpty() -> {
+                val selected = allDimensions.filter { (dimId, _) -> dimId in debugDimensions }
+                require(selected.size == debugDimensions.size) {
+                    "$DEBUG_DIMENSION_ENV must contain dimension IDs from ${allDimensions.joinToString { it.first }}"
+                }
+                logger.warn("Focused chunk extraction enabled for dimensions $debugDimensions")
+                selected
             }
-            logger.warn("Focused chunk extraction enabled for dimension $debugDimension")
-            selected
+            ENABLE_SPAWN_HASHES -> spawnHashDimensions
+            else -> allDimensions
         }
 
-        val debugClusterOrigins = debugClusterOrigins()
-        val sampledClusters = if (debugClusterOrigins.isEmpty()) {
+        val clusterOrigins = debugClusterOrigins().ifEmpty {
+            if (ENABLE_SPAWN_HASHES) SPAWN_HASH_CLUSTER_ORIGINS else emptyList()
+        }
+        val sampledClusters = if (clusterOrigins.isEmpty()) {
             sampledChunkClusters()
         } else {
-            logger.warn("Focused chunk extraction enabled for cluster origins $debugClusterOrigins")
-            debugClusterOrigins.map(::focusedChunkCluster)
+            logger.info("Chunk extraction using cluster origins $clusterOrigins")
+            clusterOrigins.map(::focusedChunkCluster)
         }
         val sampledPositions = sampledClusters.flatten()
         val generationClusters = sampledClusters
