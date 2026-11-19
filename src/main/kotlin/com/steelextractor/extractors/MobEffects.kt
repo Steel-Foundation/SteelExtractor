@@ -9,10 +9,12 @@ import net.minecraft.core.particles.ColorParticleOption
 import net.minecraft.core.particles.SimpleParticleType
 import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.server.MinecraftServer
+import net.minecraft.sounds.SoundEvent
 import net.minecraft.world.effect.MobEffectInstance
 import net.minecraft.world.entity.ai.attributes.Attribute
 import net.minecraft.world.entity.ai.attributes.AttributeModifier
 import java.lang.reflect.Field
+import java.util.Optional
 
 class MobEffects : SteelExtractor.Extractor {
     private val attributeModifiersField: Field = net.minecraft.world.effect.MobEffect::class.java
@@ -27,6 +29,9 @@ class MobEffects : SteelExtractor.Extractor {
         .apply { isAccessible = true }
     private val attributeTemplateOperationField: Field = attributeTemplateClass
         .getDeclaredField("operation")
+        .apply { isAccessible = true }
+    private val soundOnAddedField: Field = net.minecraft.world.effect.MobEffect::class.java
+        .getDeclaredField("soundOnAdded")
         .apply { isAccessible = true }
     private val colorParticleColorField: Field = ColorParticleOption::class.java
         .getDeclaredField("color")
@@ -57,6 +62,8 @@ class MobEffects : SteelExtractor.Extractor {
             if (attributeModifiers.size() > 0) {
                 effectJson.add("attribute_modifiers", attributeModifiers)
             }
+
+            extractSoundOnAdded(effect)?.let { effectJson.addProperty("sound_on_added", it) }
 
             effectsArray.add(effectJson)
         }
@@ -133,6 +140,14 @@ class MobEffects : SteelExtractor.Extractor {
         }
         particleJson.addProperty("options_type", "fixed_color")
         particleJson.addProperty("color", regularColor)
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun extractSoundOnAdded(effect: net.minecraft.world.effect.MobEffect): String? {
+        val sound = (soundOnAddedField.get(effect) as Optional<SoundEvent>).orElse(null) ?: return null
+        val key = BuiltInRegistries.SOUND_EVENT.getKey(sound)
+            ?: error("Mob effect ${BuiltInRegistries.MOB_EFFECT.getKey(effect)} references an unregistered sound event")
+        return key.toString()
     }
 
     @Suppress("UNCHECKED_CAST")
