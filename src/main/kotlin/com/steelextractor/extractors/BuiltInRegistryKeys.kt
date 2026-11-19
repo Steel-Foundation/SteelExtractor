@@ -167,3 +167,11 @@ class StatTypeRegistryExtractor : SteelExtractor.Extractor {
         return extractBuiltInRegistry(BuiltInRegistries.STAT_TYPE) { _: StatType<*>, _ -> }
     }
 }
+
+
+class NumberFormatTypeRegistryExtractor : SteelExtractor.Extractor {
+    override fun fileName(): String = "steel-registry/build_assets/number_format_types.json"
+
+    override fun extract(server: MinecraftServer): JsonElement =
+        extractBuiltInRegistry(BuiltInRegistries.NUMBER_FORMAT_TYPE)
+}
