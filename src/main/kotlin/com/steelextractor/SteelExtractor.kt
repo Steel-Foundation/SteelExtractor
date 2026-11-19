@@ -1,12 +1,14 @@
 package com.steelextractor
 
 import com.google.gson.GsonBuilder
+import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.steelextractor.extractors.Attributes
 import com.steelextractor.extractors.Classes
 import com.steelextractor.extractors.DataComponents
 import com.steelextractor.extractors.BlockEntities
 import com.steelextractor.extractors.Blocks
+import com.steelextractor.extractors.BlockSpawnRules
 import com.steelextractor.extractors.Entities
 import com.steelextractor.extractors.EntityEvents
 import com.steelextractor.extractors.Fluids
@@ -27,6 +29,7 @@ import com.steelextractor.extractors.CandleCakes
 import com.steelextractor.extractors.ChunkStageHashes
 import com.steelextractor.extractors.CustomStatRegistryExtractor
 import com.steelextractor.extractors.Commands
+import com.steelextractor.extractors.EntityVariantEnums
 import com.steelextractor.extractors.EntityVariantRegistries
 import com.steelextractor.extractors.MapDecorationTypeRegistryExtractor
 import com.steelextractor.extractors.PositionSourceTypeRegistryExtractor
@@ -79,10 +82,13 @@ object SteelExtractor : ModInitializer {
         defaultValue = true
     )
 
+    private val ENABLE_SPAWN_HASHES = envFlag("STEEL_EXTRACTOR_ENABLE_SPAWN_HASHES")
+
     /** Sampling parameters: place random CLUSTER_SIZE x CLUSTER_SIZE clusters within a SAMPLE_HALF_RANGE*2 x SAMPLE_HALF_RANGE*2 area. */
     const val CHUNK_SAMPLE_SEED: Long = 123456
     private const val CLUSTER_SIZE: Int = 10 // 10x10 chunks per cluster
     private const val CHUNKS_PER_CLUSTER: Int = CLUSTER_SIZE * CLUSTER_SIZE
+    private val SPAWN_HASH_CLUSTER_ORIGINS = listOf(ChunkPos(32, 32), ChunkPos(60, -180))
     private const val NUM_CLUSTERS: Int = 25 // 25 clusters * 100 = 2,500 chunks
     const val NUM_SAMPLE_CHUNKS: Int = NUM_CLUSTERS * CHUNKS_PER_CLUSTER
     private const val SAMPLE_HALF_RANGE: Int = 500_000 // 1000,000x1000,000 chunk area
@@ -158,15 +164,17 @@ object SteelExtractor : ModInitializer {
         return positions.filter { !excludedSet.contains(it) }.sortedWith(CHUNK_POSITION_ORDER)
     }
 
-    private fun debugClusterOrigin(): ChunkPos? {
-        val value = System.getenv(DEBUG_CLUSTER_ENV)?.takeIf { it.isNotBlank() } ?: return null
-        val parts = value.split(",", limit = 2)
-        require(parts.size == 2) { "$DEBUG_CLUSTER_ENV must be formatted as '<chunk_x>,<chunk_z>'" }
-        val x = parts[0].toIntOrNull()
-            ?: error("$DEBUG_CLUSTER_ENV chunk_x is not an integer: ${parts[0]}")
-        val z = parts[1].toIntOrNull()
-            ?: error("$DEBUG_CLUSTER_ENV chunk_z is not an integer: ${parts[1]}")
-        return ChunkPos(x, z)
+    private fun debugClusterOrigins(): List<ChunkPos> {
+        val value = System.getenv(DEBUG_CLUSTER_ENV)?.takeIf { it.isNotBlank() } ?: return emptyList()
+        return value.split(";").map { pair ->
+            val parts = pair.trim().split(",", limit = 2)
+            require(parts.size == 2) { "$DEBUG_CLUSTER_ENV must contain semicolon-separated '<chunk_x>,<chunk_z>' origins" }
+            val x = parts[0].toIntOrNull()
+                ?: error("$DEBUG_CLUSTER_ENV chunk_x is not an integer: ${parts[0]}")
+            val z = parts[1].toIntOrNull()
+                ?: error("$DEBUG_CLUSTER_ENV chunk_z is not an integer: ${parts[1]}")
+            ChunkPos(x, z)
+        }
     }
 
     private fun envFlag(name: String, defaultValue: Boolean = false): Boolean {
@@ -242,6 +250,7 @@ object SteelExtractor : ModInitializer {
         }
 
         addUnlessDisabled("BLOCKS") { Blocks() }
+        addUnlessDisabled("BLOCK_SPAWN_RULES") { BlockSpawnRules() }
         addUnlessDisabled("BLOCK_ENTITIES") { BlockEntities() }
         addUnlessDisabled("COMMANDS") { Commands() }
         addUnlessDisabled("ITEMS") { Items() }
@@ -253,6 +262,7 @@ object SteelExtractor : ModInitializer {
         addUnlessDisabled("PACKETS") { Packets() }
         addUnlessDisabled("MENU_TYPES") { MenuTypes() }
         addUnlessDisabled("ENTITIES") { Entities() }
+        addUnlessDisabled("ENTITY_VARIANT_ENUMS") { EntityVariantEnums() }
         addUnlessDisabled("ENTITY_VARIANT_REGISTRIES") { EntityVariantRegistries() }
         addUnlessDisabled("ENTITY_EVENTS") { EntityEvents() }
         addUnlessDisabled("FLUIDS") { Fluids() }
@@ -281,36 +291,48 @@ object SteelExtractor : ModInitializer {
 
         val chunkStageExtractor = ChunkStageHashes()
 
-        val allDimensions = listOf(
+        val spawnHashDimensions = listOf(
             "minecraft:overworld" to Level.OVERWORLD,
-            "minecraft:the_nether" to Level.NETHER,
-            "minecraft:the_end" to Level.END
+            "minecraft:the_nether" to Level.NETHER
         )
+        val allDimensions = spawnHashDimensions + ("minecraft:the_end" to Level.END)
 
-        val debugDimension = System.getenv(DEBUG_DIMENSION_ENV)?.takeIf { it.isNotBlank() }
-        val dimensions = if (debugDimension == null) {
-            allDimensions
-        } else {
-            val selected = allDimensions.filter { (dimId, _) -> dimId == debugDimension }
-            require(selected.isNotEmpty()) {
-                "$DEBUG_DIMENSION_ENV must be one of ${allDimensions.joinToString { it.first }}"
+        val debugDimensions = System.getenv(DEBUG_DIMENSION_ENV)
+            ?.split(",")
+            ?.map(String::trim)
+            ?.filter(String::isNotEmpty)
+            ?.toSet()
+            .orEmpty()
+        val dimensions = when {
+            debugDimensions.isNotEmpty() -> {
+                val selected = allDimensions.filter { (dimId, _) -> dimId in debugDimensions }
+                require(selected.size == debugDimensions.size) {
+                    "$DEBUG_DIMENSION_ENV must contain dimension IDs from ${allDimensions.joinToString { it.first }}"
+                }
+                logger.warn("Focused chunk extraction enabled for dimensions $debugDimensions")
+                selected
             }
-            logger.warn("Focused chunk extraction enabled for dimension $debugDimension")
-            selected
+            ENABLE_SPAWN_HASHES -> spawnHashDimensions
+            else -> allDimensions
         }
 
-        val debugClusterOrigin = debugClusterOrigin()
-        val sampledClusters = if (debugClusterOrigin == null) {
+        val clusterOrigins = debugClusterOrigins().ifEmpty {
+            if (ENABLE_SPAWN_HASHES) SPAWN_HASH_CLUSTER_ORIGINS else emptyList()
+        }
+        val sampledClusters = if (clusterOrigins.isEmpty()) {
             sampledChunkClusters()
         } else {
-            logger.warn("Focused chunk extraction enabled for cluster origin (${debugClusterOrigin.x}, ${debugClusterOrigin.z})")
-            listOf(focusedChunkCluster(debugClusterOrigin))
+            logger.info("Chunk extraction using cluster origins $clusterOrigins")
+            clusterOrigins.map(::focusedChunkCluster)
         }
         val sampledPositions = sampledClusters.flatten()
         val generationClusters = sampledClusters
             .map { cluster -> cluster.sortedWith(CHUNK_POSITION_ORDER) }
             .sortedWith(compareBy({ it.first().x }, { it.first().z }))
         val clusterCount = generationClusters.size
+        if (ENABLE_SPAWN_HASHES) {
+            require(sampledPositions.distinct().size == sampledPositions.size) { "Spawn fixture clusters overlap" }
+        }
 
         if (ENABLE_CHUNK_EXTRACTION) {
             ServerLifecycleEvents.SERVER_STARTING.register { _ ->
@@ -323,6 +345,7 @@ object SteelExtractor : ModInitializer {
                 }
                 ChunkStageHashStorage.enableBinaryDump = ENABLE_BINARY_DUMP
                 ChunkStageHashStorage.startTracking(chunksToTrack)
+                if (ENABLE_SPAWN_HASHES) ChunkSpawnTraces.enable()
             }
         } else {
             logger.info("Chunk extraction DISABLED")
@@ -593,6 +616,14 @@ object SteelExtractor : ModInitializer {
                     cluster.lightFeatureQueue.isEmpty() &&
                     cluster.lightQueue.isEmpty()
                 ) {
+                    if (ENABLE_SPAWN_HASHES) {
+                        for (pos in cluster.positions) {
+                            level.getChunk(pos.x, pos.z, ChunkStatus.SPAWN, true)
+                            check(ChunkSpawnTraces.contains(pos, dim.dimId)) {
+                                "No SPAWN trace for $pos in ${dim.dimId}. Use a fresh world and sample away from spawn."
+                            }
+                        }
+                    }
                     dim.clusters.removeFirst()
                 }
 
@@ -623,6 +654,24 @@ object SteelExtractor : ModInitializer {
                     } catch (e: java.lang.Exception) {
                         logger.error("Binary light data extraction failed.", e)
                     }
+                }
+                if (ENABLE_SPAWN_HASHES) {
+                    val out = outputDirectory.resolve(ChunkSpawnTraces.OUTPUT_PATH)
+                    Files.createDirectories(out.parent)
+                    Files.newBufferedWriter(out, StandardCharsets.UTF_8).use { writer ->
+                        val fixture = ChunkSpawnTraces.extract(server.overworld().seed)
+                        val clusterOrigins = JsonArray()
+                        for (cluster in generationClusters) {
+                            val origin = JsonArray()
+                            origin.add(cluster.first().x)
+                            origin.add(cluster.first().z)
+                            clusterOrigins.add(origin)
+                        }
+                        fixture.add("cluster_origins", clusterOrigins)
+                        fixture.addProperty("cluster_size", CLUSTER_SIZE)
+                        gson.toJson(fixture, writer)
+                    }
+                    logger.info("Wrote " + out.toAbsolutePath())
                 }
                 logger.info("All extractors complete!")
                 stopWhenComplete(server)
