@@ -1,12 +1,14 @@
 package com.steelextractor
 
 import com.google.gson.GsonBuilder
+import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.steelextractor.extractors.Attributes
 import com.steelextractor.extractors.Classes
 import com.steelextractor.extractors.DataComponents
 import com.steelextractor.extractors.BlockEntities
 import com.steelextractor.extractors.Blocks
+import com.steelextractor.extractors.BlockSpawnRules
 import com.steelextractor.extractors.Entities
 import com.steelextractor.extractors.EntityEvents
 import com.steelextractor.extractors.Fluids
@@ -78,6 +80,8 @@ object SteelExtractor : ModInitializer {
         "STEEL_EXTRACTOR_ENABLE_BINARY_DUMP",
         defaultValue = true
     )
+
+    private val ENABLE_SPAWN_HASHES = envFlag("STEEL_EXTRACTOR_ENABLE_SPAWN_HASHES")
 
     /** Sampling parameters: place random CLUSTER_SIZE x CLUSTER_SIZE clusters within a SAMPLE_HALF_RANGE*2 x SAMPLE_HALF_RANGE*2 area. */
     const val CHUNK_SAMPLE_SEED: Long = 123456
@@ -158,15 +162,17 @@ object SteelExtractor : ModInitializer {
         return positions.filter { !excludedSet.contains(it) }.sortedWith(CHUNK_POSITION_ORDER)
     }
 
-    private fun debugClusterOrigin(): ChunkPos? {
-        val value = System.getenv(DEBUG_CLUSTER_ENV)?.takeIf { it.isNotBlank() } ?: return null
-        val parts = value.split(",", limit = 2)
-        require(parts.size == 2) { "$DEBUG_CLUSTER_ENV must be formatted as '<chunk_x>,<chunk_z>'" }
-        val x = parts[0].toIntOrNull()
-            ?: error("$DEBUG_CLUSTER_ENV chunk_x is not an integer: ${parts[0]}")
-        val z = parts[1].toIntOrNull()
-            ?: error("$DEBUG_CLUSTER_ENV chunk_z is not an integer: ${parts[1]}")
-        return ChunkPos(x, z)
+    private fun debugClusterOrigins(): List<ChunkPos> {
+        val value = System.getenv(DEBUG_CLUSTER_ENV)?.takeIf { it.isNotBlank() } ?: return emptyList()
+        return value.split(";").map { pair ->
+            val parts = pair.trim().split(",", limit = 2)
+            require(parts.size == 2) { "$DEBUG_CLUSTER_ENV must contain semicolon-separated '<chunk_x>,<chunk_z>' origins" }
+            val x = parts[0].toIntOrNull()
+                ?: error("$DEBUG_CLUSTER_ENV chunk_x is not an integer: ${parts[0]}")
+            val z = parts[1].toIntOrNull()
+                ?: error("$DEBUG_CLUSTER_ENV chunk_z is not an integer: ${parts[1]}")
+            ChunkPos(x, z)
+        }
     }
 
     private fun envFlag(name: String, defaultValue: Boolean = false): Boolean {
@@ -242,6 +248,7 @@ object SteelExtractor : ModInitializer {
         }
 
         addUnlessDisabled("BLOCKS") { Blocks() }
+        addUnlessDisabled("BLOCK_SPAWN_RULES") { BlockSpawnRules() }
         addUnlessDisabled("BLOCK_ENTITIES") { BlockEntities() }
         addUnlessDisabled("COMMANDS") { Commands() }
         addUnlessDisabled("ITEMS") { Items() }
@@ -299,18 +306,21 @@ object SteelExtractor : ModInitializer {
             selected
         }
 
-        val debugClusterOrigin = debugClusterOrigin()
-        val sampledClusters = if (debugClusterOrigin == null) {
+        val debugClusterOrigins = debugClusterOrigins()
+        val sampledClusters = if (debugClusterOrigins.isEmpty()) {
             sampledChunkClusters()
         } else {
-            logger.warn("Focused chunk extraction enabled for cluster origin (${debugClusterOrigin.x}, ${debugClusterOrigin.z})")
-            listOf(focusedChunkCluster(debugClusterOrigin))
+            logger.warn("Focused chunk extraction enabled for cluster origins $debugClusterOrigins")
+            debugClusterOrigins.map(::focusedChunkCluster)
         }
         val sampledPositions = sampledClusters.flatten()
         val generationClusters = sampledClusters
             .map { cluster -> cluster.sortedWith(CHUNK_POSITION_ORDER) }
             .sortedWith(compareBy({ it.first().x }, { it.first().z }))
         val clusterCount = generationClusters.size
+        if (ENABLE_SPAWN_HASHES) {
+            require(sampledPositions.distinct().size == sampledPositions.size) { "Spawn fixture clusters overlap" }
+        }
 
         if (ENABLE_CHUNK_EXTRACTION) {
             ServerLifecycleEvents.SERVER_STARTING.register { _ ->
@@ -323,6 +333,7 @@ object SteelExtractor : ModInitializer {
                 }
                 ChunkStageHashStorage.enableBinaryDump = ENABLE_BINARY_DUMP
                 ChunkStageHashStorage.startTracking(chunksToTrack)
+                if (ENABLE_SPAWN_HASHES) ChunkSpawnTraces.enable()
             }
         } else {
             logger.info("Chunk extraction DISABLED")
@@ -593,6 +604,14 @@ object SteelExtractor : ModInitializer {
                     cluster.lightFeatureQueue.isEmpty() &&
                     cluster.lightQueue.isEmpty()
                 ) {
+                    if (ENABLE_SPAWN_HASHES) {
+                        for (pos in cluster.positions) {
+                            level.getChunk(pos.x, pos.z, ChunkStatus.SPAWN, true)
+                            check(ChunkSpawnTraces.contains(pos, dim.dimId)) {
+                                "No SPAWN trace for $pos in ${dim.dimId}. Use a fresh world and sample away from spawn."
+                            }
+                        }
+                    }
                     dim.clusters.removeFirst()
                 }
 
@@ -623,6 +642,24 @@ object SteelExtractor : ModInitializer {
                     } catch (e: java.lang.Exception) {
                         logger.error("Binary light data extraction failed.", e)
                     }
+                }
+                if (ENABLE_SPAWN_HASHES) {
+                    val out = outputDirectory.resolve(ChunkSpawnTraces.OUTPUT_PATH)
+                    Files.createDirectories(out.parent)
+                    Files.newBufferedWriter(out, StandardCharsets.UTF_8).use { writer ->
+                        val fixture = ChunkSpawnTraces.extract(server.overworld().seed)
+                        val clusterOrigins = JsonArray()
+                        for (cluster in generationClusters) {
+                            val origin = JsonArray()
+                            origin.add(cluster.first().x)
+                            origin.add(cluster.first().z)
+                            clusterOrigins.add(origin)
+                        }
+                        fixture.add("cluster_origins", clusterOrigins)
+                        fixture.addProperty("cluster_size", CLUSTER_SIZE)
+                        gson.toJson(fixture, writer)
+                    }
+                    logger.info("Wrote " + out.toAbsolutePath())
                 }
                 logger.info("All extractors complete!")
                 stopWhenComplete(server)
