@@ -29,6 +29,7 @@ import com.steelextractor.extractors.CandleCakes
 import com.steelextractor.extractors.ChunkStageHashes
 import com.steelextractor.extractors.CustomStatRegistryExtractor
 import com.steelextractor.extractors.Commands
+import com.steelextractor.extractors.EntityVariantEnums
 import com.steelextractor.extractors.EntityVariantRegistries
 import com.steelextractor.extractors.MapDecorationTypeRegistryExtractor
 import com.steelextractor.extractors.PositionSourceTypeRegistryExtractor
@@ -260,6 +261,7 @@ object SteelExtractor : ModInitializer {
         addUnlessDisabled("PACKETS") { Packets() }
         addUnlessDisabled("MENU_TYPES") { MenuTypes() }
         addUnlessDisabled("ENTITIES") { Entities() }
+        addUnlessDisabled("ENTITY_VARIANT_ENUMS") { EntityVariantEnums() }
         addUnlessDisabled("ENTITY_VARIANT_REGISTRIES") { EntityVariantRegistries() }
         addUnlessDisabled("ENTITY_EVENTS") { EntityEvents() }
         addUnlessDisabled("FLUIDS") { Fluids() }
