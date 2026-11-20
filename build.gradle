@@ -120,3 +120,34 @@ tasks.register('extractJavaBlockPosSets', JavaExec) {
 tasks.named('runServer') {
     dependsOn 'extractJavaBlockPosSets'
 }
+
+// Static vanilla map colors do not require a running server.
+tasks.register('extractMapColors', JavaExec) {
+    group = 'extraction'
+    description = 'Extract vanilla map colors and brightness metadata as JSON'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.steelextractor.extractors.MapColors'
+    workingDir = layout.projectDirectory.dir('run').asFile
+    doFirst {
+        java.nio.file.Files.createDirectories(workingDir.toPath())
+    }
+}
+
+// Block-state map colors are cached by Vanilla and need no running server.
+tasks.register('extractBlockMapColors', JavaExec) {
+    group = 'extraction'
+    description = 'Extract vanilla block-state map colors as JSON'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.steelextractor.extractors.BlockMapColors'
+    workingDir = layout.projectDirectory.dir('run').asFile
+    doFirst { java.nio.file.Files.createDirectories(workingDir.toPath()) }
+}
+
+tasks.register('extractMapItems', JavaExec) {
+    group = 'extraction'
+    description = 'Capture actual vanilla map-item reference pixels'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.steelextractor.extractors.MapItems'
+    workingDir = layout.projectDirectory.dir('run').asFile
+    doFirst { java.nio.file.Files.createDirectories(workingDir.toPath()) }
+}

@@ -4,6 +4,8 @@ import com.google.gson.GsonBuilder
 import com.google.gson.JsonElement
 import com.steelextractor.extractors.Attributes
 import com.steelextractor.extractors.Classes
+import com.steelextractor.extractors.MapColors
+import com.steelextractor.extractors.BlockMapColors
 import com.steelextractor.extractors.DataComponents
 import com.steelextractor.extractors.BlockEntities
 import com.steelextractor.extractors.Blocks
@@ -31,6 +33,7 @@ import com.steelextractor.extractors.EntityVariantRegistries
 import com.steelextractor.extractors.MapDecorationTypeRegistryExtractor
 import com.steelextractor.extractors.PositionSourceTypeRegistryExtractor
 import com.steelextractor.extractors.StatTypeRegistryExtractor
+import com.steelextractor.extractors.NumberFormatTypeRegistryExtractor
 import com.steelextractor.extractors.GameEvents
 import com.steelextractor.extractors.Weathering
 import com.steelextractor.extractors.TntExplosionOrder
@@ -233,7 +236,10 @@ object SteelExtractor : ModInitializer {
         // Build immediate extractors list conditionally. To disable a particular extractor,
         // set STEEL_EXTRACTOR_DISABLE_<NAME>=1 (or true/yes).
         val immediateExtractors = mutableListOf<Extractor>()
+        val selectedExtractors = System.getenv("STEEL_EXTRACTOR_ONLY")
+            ?.split(',')?.map(String::trim)?.filter(String::isNotEmpty)?.toSet()
         fun addUnlessDisabled(name: String, supplier: () -> Extractor) {
+            if (selectedExtractors != null && name !in selectedExtractors) return
             if (envFlag("STEEL_EXTRACTOR_DISABLE_$name")) {
                 logger.info("Extractor $name disabled via STEEL_EXTRACTOR_DISABLE_$name")
             } else {
@@ -263,6 +269,8 @@ object SteelExtractor : ModInitializer {
         addUnlessDisabled("POTIONS") { Potions() }
         addUnlessDisabled("SOUND_TYPES") { SoundTypes() }
         addUnlessDisabled("MAP_DECORATION_TYPES") { MapDecorationTypeRegistryExtractor() }
+        addUnlessDisabled("MAP_COLORS") { MapColors() }
+        addUnlessDisabled("BLOCK_MAP_COLORS") { BlockMapColors() }
         addUnlessDisabled("SOUND_EVENTS") { SoundEvents() }
         addUnlessDisabled("MULTI_NOISE_BIOME_PARAMETERS") { MultiNoiseBiomeParameters() }
         addUnlessDisabled("BIOME_HASHES") { BiomeHashes() }
@@ -277,6 +285,7 @@ object SteelExtractor : ModInitializer {
         addUnlessDisabled("CUSTOM_STATS") { CustomStatRegistryExtractor() }
         addUnlessDisabled("STAT_TYPES") { StatTypeRegistryExtractor() }
         addUnlessDisabled("TNT_EXPLOSION_ORDER") { TntExplosionOrder() }
+        addUnlessDisabled("NUMBER_FORMAT_TYPES") { NumberFormatTypeRegistryExtractor() }
 
 
         val chunkStageExtractor = ChunkStageHashes()
